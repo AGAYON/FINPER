@@ -1,0 +1,29 @@
+{
+    "name": "FINPER — Finanzas Personales",
+    "short_name": "FINPER",
+    "description": "Control financiero personal completo — app web instalable",
+    "theme_color": "#1e293b",
+    "background_color": "#0f172a",
+    "display": "standalone",
+    "start_url": "/",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "/icons/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "screenshots": [],
+    "categories": [
+        "finance",
+        "productivity"
+    ]
+}

@@ -1,0 +1,59 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: finper_postgres
+    restart: unless-stopped
+    # Credenciales de Postgres para el contenedor.
+    # Deben coincidir con DATABASE_URL en apps/api/.env
+    environment:
+      POSTGRES_DB: finper_dev
+      POSTGRES_USER: finper
+      POSTGRES_PASSWORD: finper_secret
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U finper -d finper_dev']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile.dev
+    container_name: finper_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./apps/api/.env
+    ports:
+      - '3001:3001'
+    volumes:
+      - ./apps/api:/app
+      - /app/node_modules
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile.dev
+    container_name: finper_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    env_file:
+      - ./apps/web/.env
+    ports:
+      - '5173:5173'
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+    command: npm run dev -- --host
+
+volumes:
+  postgres_data:

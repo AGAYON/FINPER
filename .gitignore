@@ -1,0 +1,59 @@
+# ═══════════════════════════════════════════════════════
+# FINPER — .gitignore
+# ═══════════════════════════════════════════════════════
+
+# ── Variables de entorno (NUNCA subir a Git) ──────────
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+
+# ── Dependencias ──────────────────────────────────────
+node_modules/
+**/node_modules/
+
+# ── Build outputs ─────────────────────────────────────
+dist/
+build/
+**/dist/
+**/build/
+
+# ── Prisma — cliente generado ─────────────────────────
+# El cliente se genera con `prisma generate`, no se versiona
+**/.prisma/
+**/node_modules/.prisma/
+
+# ── Docker volumes ────────────────────────────────────
+postgres_data/
+
+# ── TypeScript ────────────────────────────────────────
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# ── Logs ─────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── OS / Editor ───────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+
+# ── Temporales ────────────────────────────────────────
+tmp/
+temp/
+.cache/
+.parcel-cache/

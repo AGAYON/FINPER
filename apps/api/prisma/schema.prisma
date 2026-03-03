@@ -1,0 +1,241 @@
+// Prisma schema — FINPER (Sistema de Finanzas Personales)
+// Blueprint: https://github.com/user/finper (ver BLUEPRINT.md)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TipoCuenta {
+  banco
+  efectivo
+  ahorro
+  inversion
+  credito
+  prestamo
+}
+
+enum TipoTransaccion {
+  ingreso
+  gasto
+  transferencia
+  ajuste
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CATEGORÍAS
+// Clasificación de ingresos y gastos. Soft delete con campo `activa`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Categoria {
+  id         String   @id @default(uuid()) @db.Uuid
+  nombre     String   @db.VarChar(60)
+  /// "ingreso" | "gasto" — validado en backend con Zod
+  tipo       String   @db.VarChar(10)
+  color      String   @default("#6B7280") @db.VarChar(7)
+  icono      String   @default("circle") @db.VarChar(40)
+  activa     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relaciones
+  transacciones Transaccion[]
+  presupuestos  Presupuesto[]
+  recurrentes   Recurrente[]
+
+  @@map("categorias")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CUENTAS
+// Contenedores de dinero. Saldo calculado siempre desde transacciones.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Cuenta {
+  id             String     @id @default(uuid()) @db.Uuid
+  nombre         String     @db.VarChar(80)
+  tipo           TipoCuenta
+  /// Lo que tenía la cuenta antes de usar el sistema
+  saldoInicial   Decimal    @default(0) @map("saldo_inicial") @db.Decimal(15, 2)
+  fechaInicio    DateTime   @default(now()) @map("fecha_inicio") @db.Date
+  moneda         String     @default("MXN") @db.VarChar(3)
+  color          String     @default("#6B7280") @db.VarChar(7)
+  icono          String     @default("bank") @db.VarChar(40)
+  /// Si false: no suma al patrimonio neto (ej. caja chica ajena)
+  incluirEnTotal Boolean    @default(true) @map("incluir_en_total")
+  activa         Boolean    @default(true)
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relaciones
+  transaccionesOrigen  Transaccion[] @relation("CuentaOrigen")
+  transaccionesDestino Transaccion[] @relation("CuentaDestino")
+  recurrentes          Recurrente[]
+  metas                Meta[]
+
+  @@map("cuentas")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RECURRENTES
+// Plantillas de transacciones periódicas (semi-automáticas, requieren confirmación).
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Recurrente {
+  id             String    @id @default(uuid()) @db.Uuid
+  nombre         String    @db.VarChar(80)
+  monto          Decimal   @db.Decimal(15, 2)
+  /// "ingreso" | "gasto"
+  tipo           String    @db.VarChar(10)
+  categoriaId    String    @map("categoria_id") @db.Uuid
+  cuentaId       String    @map("cuenta_id") @db.Uuid
+  /// Día del mes en que ocurre (1–31)
+  diaDelMes      Int       @map("dia_del_mes") @db.SmallInt
+  activo         Boolean   @default(true)
+  ultimaEjecucion DateTime? @map("ultima_ejecucion") @db.Date
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relaciones
+  categoria     Categoria     @relation(fields: [categoriaId], references: [id])
+  cuenta        Cuenta        @relation(fields: [cuentaId], references: [id])
+  transacciones Transaccion[]
+
+  @@map("recurrentes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRANSACCIONES
+// El corazón del sistema. Las eliminaciones tienen significado financiero.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Transaccion {
+  id              String          @id @default(uuid()) @db.Uuid
+  fecha           DateTime        @db.Date
+  monto           Decimal         @db.Decimal(15, 2)
+  descripcion     String          @db.VarChar(120)
+  tipo            TipoTransaccion
+  /// Cuenta de donde sale el dinero (siempre requerida)
+  cuentaOrigenId  String          @map("cuenta_origen_id") @db.Uuid
+  /// Cuenta destino (solo para transferencias)
+  cuentaDestinoId String?         @map("cuenta_destino_id") @db.Uuid
+  /// Obligatoria para ingresos y gastos; nula para transferencias/ajustes
+  categoriaId     String?         @map("categoria_id") @db.Uuid
+  notas           String?         @db.Text
+  /// Recurrente que generó esta transacción (si aplica)
+  recurrenteId    String?         @map("recurrente_id") @db.Uuid
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relaciones
+  cuentaOrigen   Cuenta       @relation("CuentaOrigen", fields: [cuentaOrigenId], references: [id])
+  cuentaDestino  Cuenta?      @relation("CuentaDestino", fields: [cuentaDestinoId], references: [id])
+  categoria      Categoria?   @relation(fields: [categoriaId], references: [id])
+  recurrente     Recurrente?  @relation(fields: [recurrenteId], references: [id])
+  aportaciones   AportacionMeta[]
+
+  // Índices para queries de rendimiento
+  @@index([fecha(sort: Desc)])
+  @@index([cuentaOrigenId])
+  @@index([cuentaDestinoId])
+  @@index([categoriaId])
+  @@index([updatedAt]) // para sincronización offline
+
+  @@map("transacciones")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PRESUPUESTOS
+// Límites de gasto por categoría y mes. mes=NULL = presupuesto default.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Presupuesto {
+  id           String   @id @default(uuid()) @db.Uuid
+  categoriaId  String   @map("categoria_id") @db.Uuid
+  /// Formato "2025-03" | NULL = presupuesto default permanente
+  mes          String?  @db.VarChar(7)
+  montoLimite  Decimal  @map("monto_limite") @db.Decimal(15, 2)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relaciones
+  categoria Categoria @relation(fields: [categoriaId], references: [id])
+
+  @@unique([categoriaId, mes])
+  @@index([mes])
+  @@map("presupuestos")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// METAS DE AHORRO
+// Destinos financieros con proyección automática de llegada.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Meta {
+  id             String    @id @default(uuid()) @db.Uuid
+  nombre         String    @db.VarChar(80)
+  descripcion    String?   @db.Text
+  montoObjetivo  Decimal   @map("monto_objetivo") @db.Decimal(15, 2)
+  montoActual    Decimal   @default(0) @map("monto_actual") @db.Decimal(15, 2)
+  fechaLimite    DateTime? @map("fecha_limite") @db.Date
+  /// Cuenta asociada a esta meta (opcional)
+  cuentaId       String?   @map("cuenta_id") @db.Uuid
+  color          String    @default("#6B7280") @db.VarChar(7)
+  completada     Boolean   @default(false)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relaciones
+  cuenta       Cuenta?          @relation(fields: [cuentaId], references: [id])
+  aportaciones AportacionMeta[]
+
+  @@map("metas")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// APORTACIONES DE METAS
+// Cada pago/aportación hacia una meta de ahorro.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AportacionMeta {
+  id             String    @id @default(uuid()) @db.Uuid
+  metaId         String    @map("meta_id") @db.Uuid
+  monto          Decimal   @db.Decimal(15, 2)
+  fecha          DateTime  @default(now()) @db.Date
+  nota           String?   @db.Text
+  /// Transacción relacionada (si se vincula a una transferencia a cuenta de ahorro)
+  transaccionId  String?   @map("transaccion_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relaciones
+  meta        Meta         @relation(fields: [metaId], references: [id], onDelete: Cascade)
+  transaccion Transaccion? @relation(fields: [transaccionId], references: [id], onDelete: SetNull)
+
+  @@index([metaId])
+  @@map("aportaciones_meta")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SNAPSHOTS NET WORTH
+// Fotografía diaria del patrimonio. Se crea al cargar el dashboard si no existe.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SnapshotNetWorth {
+  id        String   @id @default(uuid()) @db.Uuid
+  fecha     DateTime @unique @db.Date
+  total     Decimal  @db.Decimal(15, 2)
+  /// { "cuenta_uuid": saldo_en_ese_momento } — detalle por cuenta
+  detalle   Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([fecha(sort: Desc)])
+  @@map("snapshots_net_worth")
+}
