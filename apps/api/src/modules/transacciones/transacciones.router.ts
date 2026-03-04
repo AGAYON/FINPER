@@ -5,7 +5,7 @@ import { TipoTransaccionSchema, UUID, FechaISO } from '../../shared/validators';
 
 export const transaccionesRouter = Router();
 
-const TransaccionCreateSchema = z.object({
+const TransaccionBaseSchema = z.object({
     id: z.string().uuid().optional(), // el cliente puede enviar el UUID (modo offline)
     fecha: FechaISO,
     monto: z.number().positive(),
@@ -16,7 +16,9 @@ const TransaccionCreateSchema = z.object({
     categoriaId: z.string().uuid().optional().nullable(),
     notas: z.string().optional().nullable(),
     recurrenteId: z.string().uuid().optional().nullable(),
-}).refine(
+});
+
+const TransaccionCreateSchema = TransaccionBaseSchema.refine(
     (d) => d.tipo !== 'transferencia' || d.cuentaDestinoId != null,
     { message: 'Transferencia requiere cuentaDestinoId', path: ['cuentaDestinoId'] },
 ).refine(
@@ -116,7 +118,7 @@ transaccionesRouter.post('/', async (req, res, next) => {
 transaccionesRouter.put('/:id', async (req, res, next) => {
     try {
         const id = UUID.parse(req.params.id);
-        const data = TransaccionCreateSchema.partial().parse(req.body);
+        const data = TransaccionBaseSchema.partial().parse(req.body);
         const transaccion = await db.transaccion.update({
             where: { id },
             data: {
