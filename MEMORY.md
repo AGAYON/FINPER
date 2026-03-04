@@ -10,7 +10,7 @@
 | Módulo | Backend | Frontend | Notas |
 |---|---|---|---|
 | **Cuentas** | ✅ completo | ✅ completo | CRUD, saldo calculado, resumen activos/pasivos/net worth, modal crear/editar, archivar |
-| **Transacciones** | ✅ completo | ❌ placeholder | GET paginado con filtros, GET detalle, POST, PUT, DELETE |
+| **Transacciones** | ✅ completo | ✅ completo | GET paginado con filtros, GET detalle, POST, PUT, DELETE. UI: lista paginada, FiltroBarra, TransaccionForm (3 tipos), FAB "+", editar/eliminar con confirmación |
 | **Categorías** | ✅ completo | ✅ completo | GET agrupadas por tipo, POST, PUT, PATCH archivar. UI: lista por sección ingreso/gasto, grid de iconos, paleta de color, modal crear/editar |
 | **Presupuestos** | ✅ completo | ❌ placeholder | GET con progreso calculado, resolución default/mes específico, POST, PUT |
 | **Metas** | ✅ completo | ❌ placeholder | GET con proyección automática, POST, PUT, POST aportación (transacción DB) |
@@ -30,6 +30,11 @@
 - **Categorías archivar vía PATCH /:id/archivar**: Se añadió este endpoint al router (mismo patrón que Cuentas). El schema de PUT no incluye `activa`, así que no era posible archivar por esa vía sin extender el schema.
 - **Icono de categoría almacenado como string**: El campo `icono` guarda el nombre del componente Lucide (ej. `"ShoppingCart"`). Se resuelve a componente en runtime con un mapa `Record<IconoCategoria, React.ComponentType>` definido en cada componente que lo necesita.
 - **Botones "Crear ingreso / Crear gasto" separados**: En lugar de un botón genérico, la página tiene dos botones de acción para preseleccionar el tipo en el form, mejorando el flujo.
+- **`monto` de Prisma llega como string**: El campo NUMERIC(15,2) de Prisma serializa a JSON como string `"350"`. El frontend usa `Number(t.monto)` al mostrar. Tipado como `number` para alinearse con la intención, con conversión en runtime.
+- **UUID generado en el hook, no en el form**: `crearMutation` inyecta `{ id: uuidv4(), ...data }` antes de enviarlo. El form no conoce el UUID; esto facilita el soporte offline futuro.
+- **`cuentaOrigenId` para ingresos = cuenta receptora**: El campo se llama "origen" en la DB pero para ingresos semanticamente es la cuenta que recibe el dinero. La UI lo etiqueta simplemente como "Cuenta" para evitar confusión.
+- **Filtros invalidan la query completa de transacciones**: `filtros` es parte del queryKey (`['transacciones', filtros]`), por lo que cada cambio de filtro dispara un nuevo fetch. Los saldos de cuentas también se invalidan al mutar.
+- **FAB con 3 botones separados**: Ingreso (verde), Gasto (rojo), Transferencia (índigo) — preseleccionan el tipo y ocultan el selector de tipo en el form cuando se crea.
 
 ---
 
@@ -76,18 +81,18 @@ curl localhost:5173/api/cuentas               # verificar proxy Vite → API
 
 ## Próximo paso
 
-**Implementar frontend del módulo Transacciones** (el módulo central del sistema):
+**Implementar frontend del módulo Presupuestos**:
 
 Archivos a crear:
-- `transacciones.types.ts` — TipoTransaccion, Transaccion, TransaccionCreateInput, filtros
-- `hooks/useTransacciones.ts` — useQuery con filtros, mutations POST/PUT/DELETE
-- `components/TransaccionForm.tsx` — form complejo: monto, tipo, cuenta, categoría, fecha, descripción
-- `components/TransaccionItem.tsx` — fila de lista con tipo/monto/cuenta/categoría
-- `components/FiltroBarra.tsx` — filtros por fecha, tipo, cuenta, categoría
-- `pages/TransaccionesPage.tsx` — lista paginada + filtros + modal
+- `presupuestos.types.ts` — Presupuesto (con gastoReal, porcentaje, estado), PresupuestoCreateInput
+- `hooks/usePresupuestos.ts` — useQuery con filtro `?mes=YYYY-MM`, mutations POST/PUT
+- `components/PresupuestoCard.tsx` — barra de progreso con semáforo ok/advertencia/excedido
+- `components/PresupuestoForm.tsx` — selector categoría (solo gastos), monto límite, mes (o default)
+- `pages/PresupuestosPage.tsx` — mes picker, lista de tarjetas con progreso
 
-Notas clave para Transacciones:
-- El form necesita cuentas (`useCuentas`) y categorías (`useCategorias`) para sus selects
-- Categorías filtradas por tipo de transacción (solo gastos para gastos, solo ingresos para ingresos)
-- Transferencias no tienen categoría; necesitan cuenta origen Y destino
-- ID generado por el cliente (UUID) para soporte offline futuro
+Notas clave para Presupuestos:
+- GET `/api/presupuestos?mes=YYYY-MM` devuelve presupuestos con `gastoReal`, `porcentaje`, `estado`
+- `mes=null` = presupuesto default (aplica a todos los meses sin presupuesto específico)
+- Solo categorías de tipo `gasto` aplican para presupuestos
+- Estado semáforo: ok (<80%), advertencia (80-100%), excedido (>100%)
+- `getMesActual()` de `dates.ts` sirve para el mes por defecto
