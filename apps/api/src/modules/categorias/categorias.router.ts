@@ -53,3 +53,14 @@ categoriasRouter.put('/:id', async (req, res, next) => {
         next(err);
     }
 });
+
+// PATCH /api/categorias/:id/archivar — Soft delete
+categoriasRouter.patch('/:id/archivar', async (req, res, next) => {
+    try {
+        const id = UUID.parse(req.params.id);
+        await db.categoria.update({ where: { id }, data: { activa: false } });
+        res.status(204).send();
+    } catch (err) {
+        next(err);
+    }
+});
