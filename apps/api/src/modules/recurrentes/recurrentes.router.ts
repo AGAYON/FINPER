@@ -18,13 +18,14 @@ const RecurrenteSchema = z.object({
 recurrentesRouter.get('/', async (_req, res, next) => {
     try {
         const recurrentes = await db.recurrente.findMany({
-            where: { activo: true },
             include: { categoria: true, cuenta: true },
-            orderBy: { diaDelMes: 'asc' },
+            orderBy: [{ activo: 'desc' }, { diaDelMes: 'asc' }],
         });
 
         const hoy = new Date();
         const resultado = recurrentes.map((r) => {
+            if (!r.activo) return { ...r, proximaFecha: null, pendiente: false };
+
             const dia = r.diaDelMes;
             let proximaFecha = new Date(hoy.getFullYear(), hoy.getMonth(), dia);
             if (proximaFecha <= hoy) {

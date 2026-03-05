@@ -1,7 +1,7 @@
 # FINPER — Estado del proyecto
 
-> Última actualización: 2026-03-04
-> Fase actual: Backend completo · Frontend: Cuentas, Categorías, Transacciones, Presupuestos ✅
+> Última actualización: 2026-03-05
+> Fase actual: **Frontend completo** — todos los módulos implementados ✅
 
 ---
 
@@ -13,9 +13,9 @@
 | **Transacciones** | ✅ completo | ✅ completo | GET paginado con filtros, GET detalle, POST, PUT, DELETE. UI: lista paginada, FiltroBarra, TransaccionForm (3 tipos), FAB "+", editar/eliminar con confirmación |
 | **Categorías** | ✅ completo | ✅ completo | GET agrupadas por tipo, POST, PUT, PATCH archivar. UI: lista por sección ingreso/gasto, grid de iconos, paleta de color, modal crear/editar |
 | **Presupuestos** | ✅ completo | ✅ completo | GET con progreso calculado, resolución default/mes específico, POST, PUT, DELETE. UI: navegación por mes, PresupuestoBarra con semáforo, edición inline de límite, eliminar con confirmación, FAB + modal crear |
-| **Metas** | ✅ completo | ❌ placeholder | GET con proyección automática, POST, PUT, POST aportación (transacción DB) |
-| **Recurrentes** | ✅ completo | ❌ placeholder | GET con próxima fecha calculada, POST, PUT, POST ejecutar (transacción DB) |
-| **Dashboard** | ✅ completo | ❌ placeholder | Consolida net worth, mes actual, presupuestos, recurrentes pendientes, metas, snapshots. Genera snapshot diario. |
+| **Metas** | ✅ completo | ✅ completo | GET con proyección automática, POST, PUT, POST aportación (transacción DB). UI: MetaCard con barra de progreso, proyección en_camino, botón Aportar, editar, separación activas/finalizadas colapsable |
+| **Recurrentes** | ✅ completo | ✅ completo | GET con próxima fecha calculada, POST, PUT, POST ejecutar (transacción DB). UI: lista activos/inactivos colapsables, badge pendiente, botón Ejecutar con feedback de éxito, toggle activo/inactivo, modal crear/editar |
+| **Dashboard** | ✅ completo | ✅ completo | Consolida net worth, mes actual, presupuestos, recurrentes pendientes, metas, snapshots. Genera snapshot diario. |
 | **Sync offline** | ⚠️ parcial | — | Endpoint existe y valida body. TODO: la lógica de aplicar operaciones no está implementada — solo retorna `ok: true` sin ejecutar nada. |
 
 ---
@@ -82,14 +82,32 @@ curl localhost:5173/api/cuentas               # verificar proxy Vite → API
 
 ---
 
-## Próximo paso
+## Próximos pasos
 
-**Implementar frontend del módulo Metas**:
+Opciones en orden de prioridad:
+1. **Conectar autenticación JWT** (deuda técnica #1): aplicar `auth.middleware.ts` en todos los routers y hacer que el frontend maneje login/logout con el token.
+2. **Implementar sync offline** (deuda técnica #2): el endpoint `POST /api/sync` existe pero no aplica las operaciones — implementar la lógica en el backend y conectar el `offlineQueue` del frontend.
 
-Endpoints disponibles:
-- `GET /api/metas` — lista con proyección: `montoActual`, `porcentaje`, `diasRestantes`, `estado`
-- `POST /api/metas` — crear meta
-- `PUT /api/metas/:id` — editar meta
-- `POST /api/metas/:id/aportacion` — `{ monto, descripcion?, fecha? }`
+## Convenciones recurrentes ✅ (frontend completo)
+- monto llega de Prisma como string → convertir con Number()
+- Backend GET modificado: ya no filtra solo activos — retorna todos ordenados por [activo desc, diaDelMes asc]
+- Inactivos no incluyen proximaFecha/pendiente — backend los setea a null/false
+- Pendiente = true si no hay ultimaEjecucion o si se ejecutó en mes anterior
+- Badge ámbar "Pendiente este mes" en items activos con pendiente=true
+- Toggle activo/inactivo vía PUT /:id con { activo: bool } — invalida query recurrentes
+- Ejecutar vía POST /:id/ejecutar — invalida recurrentes, transacciones Y cuentas (saldo cambia)
+- Feedback de éxito inline en RecurrenteItem con auto-reset a 3s (no toast global)
+- Categoría filtrada por tipo en el form — reset al cambiar tipo
+- queryKey: ['recurrentes'] — invalida todo en mutaciones
 
-Estados posibles: `'en_progreso'` | `'completada'` | `'cancelada'`
+## Convenciones metas ✅ (frontend completo)
+- monto_objetivo y monto_actual llegan de Prisma como string → convertir con Number()
+- Proyección calculada por el backend: campos `porcentaje`, `dias_restantes`, `fecha_proyectada`, `en_camino`
+- fecha_limite es opcional — si no existe no mostrar días restantes
+- metas activas (en_progreso) en la lista principal; finalizadas (completada/cancelada) en sección colapsable con opacidad reducida
+- No se puede aportar a meta no activa (botón Aportar solo visible en en_progreso)
+- Modal unificado: discriminado por tipo de estado (`crear` | `editar` | `aportar` | `ninguno`)
+- AportacionForm: monto, nota (opcional), fecha (default hoy)
+- MetaForm: nombre, descripcion, monto_objetivo, fecha_limite (opcional), cuenta_id (opcional), color (paleta COLORES_META)
+- COLORES_META definido en metas.types.ts (10 colores)
+- queryKey: `['metas']` — invalida todo en mutaciones
