@@ -12,6 +12,7 @@ import { presupuestosRouter } from './modules/presupuestos/presupuestos.router';
 import { metasRouter } from './modules/metas/metas.router';
 import { recurrentesRouter } from './modules/recurrentes/recurrentes.router';
 import { dashboardRouter } from './modules/dashboard/dashboard.router';
+import { instrumentosRouter } from './modules/instrumentos/instrumentos.router';
 import { syncRouter } from './modules/sync/sync.router';
 
 const app = express();
@@ -37,6 +38,7 @@ app.use('/api/metas', metasRouter);
 app.use('/api/recurrentes', recurrentesRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/sync', syncRouter);
+app.use('/api/instrumentos', instrumentosRouter);
 
 // ── Error handler global (debe ir al final) ───────────────────────────────────
 app.use(errorHandler);

@@ -33,6 +33,7 @@ Todo feature del sistema sirve a una de estas tres preguntas. Si no responde nin
 | Presupuestos | Límites de gasto por categoría y mes |
 | Metas de ahorro | Destinos financieros con proyección de llegada |
 | Recurrentes | Plantillas de transacciones periódicas |
+| Instrumentos | Créditos e inversiones con estructura financiera, asociados a cuentas existentes |
 | Net Worth | Patrimonio neto calculado automáticamente |
 | Dashboard | Vista de síntesis del estado financiero completo |
 
@@ -296,6 +297,8 @@ CREATE INDEX idx_transacciones_updated_at  ON transacciones(updated_at);  -- syn
 CREATE INDEX idx_presupuestos_mes          ON presupuestos(mes);
 CREATE INDEX idx_aportaciones_meta         ON aportaciones_meta(meta_id);
 CREATE INDEX idx_snapshots_fecha           ON snapshots_net_worth(fecha DESC);
+CREATE INDEX idx_movimientos_instrumento_id    ON movimientos_instrumento(instrumento_id);
+CREATE INDEX idx_movimientos_instrumento_fecha ON movimientos_instrumento(fecha DESC);
 ```
 
 ---
@@ -358,7 +361,15 @@ GET /api/dashboard    Responde todo en una sola llamada:
     presupuestos: [{ categoria, limite, gastado, porcentaje, estado }],
     recurrentes_pendientes: [...],
     metas: [{ nombre, progreso, proyeccion, en_camino }],
-    snapshots_net_worth: [{ fecha, total }]   // últimos 12 meses
+    snapshots_net_worth: [{ fecha, total }],   // últimos 12 meses
+    instrumentos: {
+      creditos: [
+        { nombre, saldo_insoluto, proximo_pago, porcentaje_pagado }
+      ],
+      inversiones: [
+        { nombre, saldo_actual, rendimiento_acumulado }
+      ]
+    }
   }
 ```
 
@@ -393,6 +404,10 @@ finanzas-app/
 │   │   │   │   ├── presupuestos/
 │   │   │   │   ├── metas/
 │   │   │   │   ├── recurrentes/
+│   │   │   │   ├── instrumentos/
+│   │   │   │   │   ├── instrumentos.router.ts
+│   │   │   │   │   ├── instrumentos.service.ts
+│   │   │   │   │   └── instrumentos.types.ts
 │   │   │   │   └── dashboard/
 │   │   │   │       └── dashboard.service.ts
 │   │   │   ├── shared/

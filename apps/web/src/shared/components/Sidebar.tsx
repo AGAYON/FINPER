@@ -7,6 +7,7 @@ import {
     PiggyBank,
     Target,
     Repeat,
+    CreditCard,
     X,
 } from 'lucide-react';
 
@@ -18,6 +19,7 @@ const NAV_ITEMS = [
     { label: 'Presupuestos', icon: PiggyBank, to: '/presupuestos' },
     { label: 'Metas', icon: Target, to: '/metas' },
     { label: 'Recurrentes', icon: Repeat, to: '/recurrentes' },
+    { label: 'Instrumentos', icon: CreditCard, to: '/instrumentos' },
 ];
 
 interface SidebarProps {

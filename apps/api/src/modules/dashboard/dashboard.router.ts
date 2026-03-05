@@ -128,6 +128,151 @@ dashboardRouter.get('/', async (_req, res, next) => {
             });
         }
 
+        // ── Instrumentos (créditos e inversiones) ─────────────────────────────────
+        const instrumentos = await db.instrumento.findMany({
+            where: { activo: true },
+            include: { cuenta: true },
+        });
+
+        const creditos: Array<{
+            nombre: string;
+            saldo_insoluto: number;
+            proximo_pago: {
+                fecha: string;
+                monto_total: number;
+                monto_capital: number;
+                monto_interes: number;
+            } | null;
+            porcentaje_pagado: number | null;
+        }> = [];
+
+        const inversiones: Array<{
+            nombre: string;
+            saldo_actual: number;
+            rendimiento_acumulado: number;
+        }> = [];
+
+        for (const inst of instrumentos) {
+            if (inst.tipo === 'credito' && inst.subtipo === 'tasa_fija') {
+                const capitalInicial = Number(inst.capitalInicial ?? 0);
+                if (
+                    !capitalInicial ||
+                    !inst.tasaAnual ||
+                    !inst.plazoMeses ||
+                    !inst.fechaInicio ||
+                    !inst.periodicidadDias
+                ) {
+                    continue;
+                }
+
+                const pagos = await db.movimientoInstrumento.findMany({
+                    where: { instrumentoId: inst.id, tipo: 'pago' },
+                    orderBy: { fecha: 'asc' },
+                });
+                const ajustes = await db.movimientoInstrumento.findMany({
+                    where: { instrumentoId: inst.id, tipo: 'ajuste' },
+                });
+
+                const totalCapitalPagado = pagos.reduce(
+                    (sum, p) => sum + Number(p.montoCapital ?? 0),
+                    0,
+                );
+                const totalAjustes = ajustes.reduce(
+                    (sum, a) => sum + Number(a.montoTotal ?? 0),
+                    0,
+                );
+
+                const saldoInsoluto = Math.max(
+                    0,
+                    capitalInicial - totalCapitalPagado + totalAjustes,
+                );
+
+                const plazoMeses = Number(inst.plazoMeses);
+                const periodicidadDias = Number(inst.periodicidadDias);
+                const n = Math.round((plazoMeses * 30) / periodicidadDias);
+                const tasaAnual = Number(inst.tasaAnual);
+                const tasaPeriodo = tasaAnual / (365 / periodicidadDias);
+                const cuota =
+                    tasaPeriodo === 0
+                        ? capitalInicial / n
+                        : capitalInicial *
+                          ((tasaPeriodo * Math.pow(1 + tasaPeriodo, n)) /
+                              (Math.pow(1 + tasaPeriodo, n) - 1));
+
+                let saldo = capitalInicial;
+                const periodos: Array<{
+                    capital: number;
+                    interes: number;
+                    fecha: string;
+                }> = [];
+                const fechaInicio = inst.fechaInicio as Date;
+
+                for (let i = 1; i <= n; i++) {
+                    const interes = saldo * tasaPeriodo;
+                    let capital = cuota - interes;
+                    if (capital > saldo) capital = saldo;
+                    saldo -= capital;
+                    const fecha = new Date(
+                        fechaInicio.getTime() + periodicidadDias * i * 24 * 60 * 60 * 1000,
+                    )
+                        .toISOString()
+                        .slice(0, 10);
+                    periodos.push({
+                        capital: Number(capital.toFixed(2)),
+                        interes: Number(interes.toFixed(2)),
+                        fecha,
+                    });
+                }
+
+                const periodoActual = pagos.length;
+                const proximo =
+                    periodoActual < periodos.length ? periodos[periodoActual] : null;
+                const porcentajePagado =
+                    capitalInicial > 0
+                        ? (totalCapitalPagado / capitalInicial) * 100
+                        : null;
+
+                creditos.push({
+                    nombre: inst.nombre,
+                    saldo_insoluto: Number(saldoInsoluto.toFixed(2)),
+                    proximo_pago: proximo
+                        ? {
+                              fecha: proximo.fecha,
+                              monto_total: Number(cuota.toFixed(2)),
+                              monto_capital: proximo.capital,
+                              monto_interes: proximo.interes,
+                          }
+                        : null,
+                    porcentaje_pagado:
+                        porcentajePagado != null
+                            ? Number(porcentajePagado.toFixed(1))
+                            : null,
+                });
+            } else if (inst.tipo === 'inversion') {
+                const movimientos = await db.movimientoInstrumento.findMany({
+                    where: { instrumentoId: inst.id },
+                });
+                const aportaciones = movimientos
+                    .filter((m) => m.tipo === 'aportacion')
+                    .reduce((sum, m) => sum + Number(m.montoTotal), 0);
+                const rescates = movimientos
+                    .filter((m) => m.tipo === 'rescate')
+                    .reduce((sum, m) => sum + Number(m.montoTotal), 0);
+                const ajustes = movimientos
+                    .filter((m) => m.tipo === 'ajuste')
+                    .reduce((sum, m) => sum + Number(m.montoTotal), 0);
+
+                const capitalInicial = Number(inst.capitalInicial ?? 0);
+                const saldoActual = capitalInicial + aportaciones - rescates + ajustes;
+
+                inversiones.push({
+                    nombre: inst.nombre,
+                    saldo_actual: Number(saldoActual.toFixed(2)),
+                    rendimiento_acumulado: Number(ajustes.toFixed(2)),
+                });
+            }
+        }
+
         res.json({
             net_worth: netWorth,
             mes_actual: mesActualData,
@@ -135,6 +280,10 @@ dashboardRouter.get('/', async (_req, res, next) => {
             recurrentes_pendientes: recurrentesPendientes,
             metas: metasConProgreso,
             snapshots_net_worth: snapshots,
+            instrumentos: {
+                creditos,
+                inversiones,
+            },
         });
     } catch (err) {
         next(err);

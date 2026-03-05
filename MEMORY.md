@@ -1,6 +1,6 @@
 # FINPER — Estado del proyecto
 
-> Última actualización: 2026-03-05
+> Última actualización: 2026-03-05 (rev 3)
 > Fase actual: **Frontend completo** — todos los módulos implementados ✅
 
 ---
@@ -17,6 +17,7 @@
 | **Recurrentes** | ✅ completo | ✅ completo | GET con próxima fecha calculada, POST, PUT, POST ejecutar (transacción DB). UI: lista activos/inactivos colapsables, badge pendiente, botón Ejecutar con feedback de éxito, toggle activo/inactivo, modal crear/editar |
 | **Dashboard** | ✅ completo | ✅ completo | Consolida net worth, mes actual, presupuestos, recurrentes pendientes, metas, snapshots. Genera snapshot diario. |
 | **Sync offline** | ⚠️ parcial | — | Endpoint existe y valida body. TODO: la lógica de aplicar operaciones no está implementada — solo retorna `ok: true` sin ejecutar nada. |
+| **Instrumentos** | ✅ completo | ✅ completo | Créditos (tasa fija) e inversiones (tasa variable). Listado por tipo, InstrumentoCard con barra de progreso, detalle con tabla de amortización, PagoForm/AjusteVariableForm/InstrumentoEditForm en modal, archivar con confirmación. Botón editar en card y detalle. Integrado en dashboard. Pagos históricos: POST /:id/pagos-historicos registra N pagos retroactivos en bloque. |
 
 ---
 
@@ -38,6 +39,7 @@
 - **Presupuestos usan hard delete**: `DELETE /api/presupuestos/:id` → 204, sin soft delete. A diferencia de Cuentas y Categorías que usan archivar vía `PATCH /:id/archivar`.
 - **Edición de límite inline en PresupuestoBarra**: sin modal separado — input + botones Guardar/Cancelar aparecen en la misma tarjeta. Eliminar sigue el patrón de confirmación de dos clics de TransaccionItem.
 - **Badge "Default" en presupuestos**: los presupuestos con `mes=null` muestran badge índigo "Default" para distinguirlos visualmente de los específicos del mes.
+- **Instrumentos frontend**: Sin componente CurrencyDisplay en shared; se usa `formatCurrency` de `shared/utils/currency` en todo el módulo (igual que Cuentas). Modales con overlay + div centrado (patrón de CuentasPage).
 
 ---
 
@@ -49,6 +51,9 @@
 4. **Iconos PWA ausentes**: `vite.config.ts` referencia `/icons/icon-192.png` y `/icons/icon-512.png` que no existen en `public/`. La PWA no es instalable correctamente.
 5. **`cuentas.queries.ts` no existe**: El blueprint lo define como archivo separado, pero las queries están directamente en `cuentas.service.ts`.
 6. **CORS de la API limitado**: Sin `CORS_ORIGIN` configurado en `.env` del API, CORS solo permite `http://localhost:5173`. Llamadas directas al puerto 3001 desde un browser externo serán rechazadas.
+7. **Migración de instrumentos no generada por Prisma**: `schema.prisma` incluye enums/modelos `Instrumento` y `MovimientoInstrumento`, pero la carpeta de migraciones no pudo ser escrita desde el agente. Hay que ejecutar `npm run db:migrate` (o `prisma migrate dev`) para generar y aplicar la migración real.
+8. **Ajustes positivos de inversiones no impactan cuentas**: El endpoint `POST /api/instrumentos/:id/ajuste` registra movimientos de instrumento para igualar el valor real, pero actualmente no crea transacciones en `transacciones` para no romper la lógica de saldos de cuentas. Los rendimientos capitalizados solo se reflejan en el módulo de instrumentos/dashboard, no en el saldo de la cuenta asociada.
+9. **Página de detalle resuelve instrumento del listado en memoria**: `InstrumentoDetallePage` busca el instrumento por id en el array `instrumentos` del hook. Si el usuario recarga directamente `/instrumentos/:id`, funciona solo si la query ya tiene datos en caché. Solución futura: `GET /api/instrumentos/:id` en backend.
 
 ---
 
@@ -111,3 +116,16 @@ Opciones en orden de prioridad:
 - MetaForm: nombre, descripcion, monto_objetivo, fecha_limite (opcional), cuenta_id (opcional), color (paleta COLORES_META)
 - COLORES_META definido en metas.types.ts (10 colores)
 - queryKey: `['metas']` — invalida todo en mutaciones
+
+## Convenciones instrumentos ✅ (frontend completo)
+- Tipos en `instrumentos.types.ts` alineados al backend (camelCase: cuentaId, saldoInsoluto, proximoPago, etc.).
+- Hook `useInstrumentos()` con queryKey `['instrumentos']`; incluye `editarInstrumento` (PUT /:id). `useRegistrarPago(id)`, `useRegistrarAjuste(id)`, `useRegistrarPagosHistoricos(id)` invalidan `['instrumentos']` al completar.
+- InstrumentoCard: crédito tasa fija → barra de progreso semáforo (verde <50%, amarillo 50–80%, azul >80%); inversión → saldo actual + rendimiento acumulado en verde. Click en card navega a `/instrumentos/:id`; botones secundarios abren PagoForm/AjusteVariableForm en modal sin navegar. Botón lápiz (Pencil) abre InstrumentoEditForm.
+- InstrumentoDetallePage: instrumento obtenido del listado por id (no hay GET :id en backend). Tabla de amortización con filas pagadas en gris (text-gray-500), periodo actual en índigo (bg-indigo-50 text-gray-900), resto text-gray-900 explícito. Botón "Registrar pagos históricos" visible solo si porcentajePagado === 0.
+- **Bug corregido (2026-03-05 rev3)**: Filas de tabla de amortización sin color explícito → texto blanco sobre fondo blanco. Fix: rowCls ahora incluye text-gray-900 para filas normales y actuales.
+- Tasa anual en InstrumentoForm/InstrumentoEditForm: usuario ingresa % (ej. 24.5), se envía al backend como decimal (0.245).
+- **Edición completa (2026-03-05 rev3)**: PUT /:id acepta nombre, notas, tasaAnual (para cualquier subtipo), capitalInicial, plazoMeses. Restricción tasaAnual solo para tasa_variable eliminada. InstrumentoEditForm.tsx muestra todos los campos; plazoMeses solo si tasa_fija.
+- **Pagos históricos (2026-03-05 rev3)**: POST /:id/pagos-historicos registra N pagos en bloque. Valida: tipo credito+tasa_fija, sin movimientos previos, numeroPagos <= plazo total. Crea movimientoInstrumento + transacciones contables (transferencia capital + gasto intereses) en una $transaction. Frontend: PagosHistoricosForm.tsx con preview en tiempo real (periodo resultante, saldo insoluto, capital, intereses).
+- `InstrumentoListado` incluye `tasaAnual`, `capitalInicial`, `plazoMeses` para pre-poblar forms de edición/históricos.
+- **Bug corregido anterior (2026-03-05)**: `calcularSaldoVariable` usaba `cuenta.saldoInicial` en vez de `instrumento.capitalInicial`. Fix en `instrumentos.service.ts` y `dashboard.router.ts`.
+- **Decisión de diseño**: al crear instrumento de inversión con capitalInicial > 0, se crea automáticamente una transacción de tipo `ingreso` en la cuenta asociada con la categoría "Capital inicial" (auto-creada).

@@ -30,6 +30,23 @@ enum TipoTransaccion {
   ajuste
 }
 
+enum TipoInstrumento {
+  credito
+  inversion
+}
+
+enum SubtipoInstrumento {
+  tasa_fija
+  tasa_variable
+}
+
+enum TipoMovimientoInstrumento {
+  pago
+  aportacion
+  rescate
+  ajuste
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CATEGORÍAS
 // Clasificación de ingresos y gastos. Soft delete con campo `activa`.
@@ -80,8 +97,39 @@ model Cuenta {
   transaccionesDestino Transaccion[] @relation("CuentaDestino")
   recurrentes          Recurrente[]
   metas                Meta[]
+  instrumentos         Instrumento[]
 
   @@map("cuentas")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INSTRUMENTOS FINANCIEROS
+// Activos/pasivos con estructura de crédito o inversión asociados a una cuenta.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Instrumento {
+  id              String                @id @default(uuid()) @db.Uuid
+  nombre          String                @db.VarChar(80)
+  tipo            TipoInstrumento
+  subtipo         SubtipoInstrumento
+  cuentaId        String                @map("cuenta_id") @db.Uuid
+
+  capitalInicial   Decimal?             @map("capital_inicial") @db.Decimal(15, 2)
+  tasaAnual        Decimal?             @map("tasa_anual") @db.Decimal(8, 6)
+  plazoMeses       Int?                 @map("plazo_meses") @db.SmallInt
+  fechaInicio      DateTime?            @map("fecha_inicio") @db.Date
+  periodicidadDias Int?                 @map("periodicidad_dias") @db.SmallInt
+
+  activo     Boolean   @default(true)
+  notas      String?   @db.Text
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relaciones
+  cuenta       Cuenta                 @relation(fields: [cuentaId], references: [id])
+  movimientos  MovimientoInstrumento[]
+
+  @@map("instrumentos")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,6 +189,7 @@ model Transaccion {
   categoria      Categoria?   @relation(fields: [categoriaId], references: [id])
   recurrente     Recurrente?  @relation(fields: [recurrenteId], references: [id])
   aportaciones   AportacionMeta[]
+  movimientosInstrumento MovimientoInstrumento[]
 
   // Índices para queries de rendimiento
   @@index([fecha(sort: Desc)])
@@ -150,6 +199,36 @@ model Transaccion {
   @@index([updatedAt]) // para sincronización offline
 
   @@map("transacciones")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MOVIMIENTOS DE INSTRUMENTOS
+// Pagos de crédito, aportaciones/rescates/ajustes de inversión.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model MovimientoInstrumento {
+  id                 String                    @id @default(uuid()) @db.Uuid
+  instrumentoId      String                    @map("instrumento_id") @db.Uuid
+  tipo               TipoMovimientoInstrumento
+  fecha              DateTime                  @db.Date
+  montoTotal         Decimal                   @map("monto_total") @db.Decimal(15, 2)
+
+  montoCapital        Decimal?                 @map("monto_capital") @db.Decimal(15, 2)
+  montoInteres        Decimal?                 @map("monto_interes") @db.Decimal(15, 2)
+  montoInteresAjuste  Decimal? @default(0)     @map("monto_interes_ajuste") @db.Decimal(15, 2)
+
+  transaccionId      String?                   @map("transaccion_id") @db.Uuid
+  notas              String?                   @db.Text
+  createdAt          DateTime                  @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relaciones
+  instrumento Instrumento  @relation(fields: [instrumentoId], references: [id])
+  transaccion Transaccion? @relation(fields: [transaccionId], references: [id], onDelete: SetNull)
+
+  @@index([instrumentoId])
+  @@index([fecha(sort: Desc)])
+
+  @@map("movimientos_instrumento")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

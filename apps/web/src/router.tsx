@@ -7,6 +7,8 @@ import { CategoriasPage } from './modules/categorias/pages/CategoriasPage';
 import { PresupuestosPage } from './modules/presupuestos/pages/PresupuestosPage';
 import { MetasPage } from './modules/metas/pages/MetasPage';
 import { RecurrentesPage } from './modules/recurrentes/pages/RecurrentesPage';
+import { InstrumentosPage } from './modules/instrumentos/pages/InstrumentosPage';
+import { InstrumentoDetallePage } from './modules/instrumentos/pages/InstrumentoDetallePage';
 
 export const router = createBrowserRouter([
     {
@@ -19,6 +21,8 @@ export const router = createBrowserRouter([
             { path: '/presupuestos', element: <PresupuestosPage /> },
             { path: '/metas', element: <MetasPage /> },
             { path: '/recurrentes', element: <RecurrentesPage /> },
+            { path: '/instrumentos', element: <InstrumentosPage /> },
+            { path: '/instrumentos/:id', element: <InstrumentoDetallePage /> },
         ],
     },
 ]);
