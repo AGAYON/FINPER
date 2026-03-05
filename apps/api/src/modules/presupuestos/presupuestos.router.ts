@@ -87,6 +87,17 @@ presupuestosRouter.post('/', async (req, res, next) => {
     }
 });
 
+// DELETE /api/presupuestos/:id — Eliminar (hard delete)
+presupuestosRouter.delete('/:id', async (req, res, next) => {
+    try {
+        const id = UUID.parse(req.params.id);
+        await db.presupuesto.delete({ where: { id } });
+        res.status(204).end();
+    } catch (err) {
+        next(err);
+    }
+});
+
 // PUT /api/presupuestos/:id — Editar monto
 presupuestosRouter.put('/:id', async (req, res, next) => {
     try {

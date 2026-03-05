@@ -1,7 +1,7 @@
 # FINPER — Estado del proyecto
 
 > Última actualización: 2026-03-04
-> Fase actual: Backend completo · Frontend solo módulo Cuentas
+> Fase actual: Backend completo · Frontend: Cuentas, Categorías, Transacciones, Presupuestos ✅
 
 ---
 
@@ -12,7 +12,7 @@
 | **Cuentas** | ✅ completo | ✅ completo | CRUD, saldo calculado, resumen activos/pasivos/net worth, modal crear/editar, archivar |
 | **Transacciones** | ✅ completo | ✅ completo | GET paginado con filtros, GET detalle, POST, PUT, DELETE. UI: lista paginada, FiltroBarra, TransaccionForm (3 tipos), FAB "+", editar/eliminar con confirmación |
 | **Categorías** | ✅ completo | ✅ completo | GET agrupadas por tipo, POST, PUT, PATCH archivar. UI: lista por sección ingreso/gasto, grid de iconos, paleta de color, modal crear/editar |
-| **Presupuestos** | ✅ completo | ❌ placeholder | GET con progreso calculado, resolución default/mes específico, POST, PUT |
+| **Presupuestos** | ✅ completo | ✅ completo | GET con progreso calculado, resolución default/mes específico, POST, PUT, DELETE. UI: navegación por mes, PresupuestoBarra con semáforo, edición inline de límite, eliminar con confirmación, FAB + modal crear |
 | **Metas** | ✅ completo | ❌ placeholder | GET con proyección automática, POST, PUT, POST aportación (transacción DB) |
 | **Recurrentes** | ✅ completo | ❌ placeholder | GET con próxima fecha calculada, POST, PUT, POST ejecutar (transacción DB) |
 | **Dashboard** | ✅ completo | ❌ placeholder | Consolida net worth, mes actual, presupuestos, recurrentes pendientes, metas, snapshots. Genera snapshot diario. |
@@ -35,6 +35,9 @@
 - **`cuentaOrigenId` para ingresos = cuenta receptora**: El campo se llama "origen" en la DB pero para ingresos semanticamente es la cuenta que recibe el dinero. La UI lo etiqueta simplemente como "Cuenta" para evitar confusión.
 - **Filtros invalidan la query completa de transacciones**: `filtros` es parte del queryKey (`['transacciones', filtros]`), por lo que cada cambio de filtro dispara un nuevo fetch. Los saldos de cuentas también se invalidan al mutar.
 - **FAB con 3 botones separados**: Ingreso (verde), Gasto (rojo), Transferencia (índigo) — preseleccionan el tipo y ocultan el selector de tipo en el form cuando se crea.
+- **Presupuestos usan hard delete**: `DELETE /api/presupuestos/:id` → 204, sin soft delete. A diferencia de Cuentas y Categorías que usan archivar vía `PATCH /:id/archivar`.
+- **Edición de límite inline en PresupuestoBarra**: sin modal separado — input + botones Guardar/Cancelar aparecen en la misma tarjeta. Eliminar sigue el patrón de confirmación de dos clics de TransaccionItem.
+- **Badge "Default" en presupuestos**: los presupuestos con `mes=null` muestran badge índigo "Default" para distinguirlos visualmente de los específicos del mes.
 
 ---
 
@@ -81,18 +84,12 @@ curl localhost:5173/api/cuentas               # verificar proxy Vite → API
 
 ## Próximo paso
 
-**Implementar frontend del módulo Presupuestos**:
+**Implementar frontend del módulo Metas**:
 
-Archivos a crear:
-- `presupuestos.types.ts` — Presupuesto (con gastoReal, porcentaje, estado), PresupuestoCreateInput
-- `hooks/usePresupuestos.ts` — useQuery con filtro `?mes=YYYY-MM`, mutations POST/PUT
-- `components/PresupuestoCard.tsx` — barra de progreso con semáforo ok/advertencia/excedido
-- `components/PresupuestoForm.tsx` — selector categoría (solo gastos), monto límite, mes (o default)
-- `pages/PresupuestosPage.tsx` — mes picker, lista de tarjetas con progreso
+Endpoints disponibles:
+- `GET /api/metas` — lista con proyección: `montoActual`, `porcentaje`, `diasRestantes`, `estado`
+- `POST /api/metas` — crear meta
+- `PUT /api/metas/:id` — editar meta
+- `POST /api/metas/:id/aportacion` — `{ monto, descripcion?, fecha? }`
 
-Notas clave para Presupuestos:
-- GET `/api/presupuestos?mes=YYYY-MM` devuelve presupuestos con `gastoReal`, `porcentaje`, `estado`
-- `mes=null` = presupuesto default (aplica a todos los meses sin presupuesto específico)
-- Solo categorías de tipo `gasto` aplican para presupuestos
-- Estado semáforo: ok (<80%), advertencia (80-100%), excedido (>100%)
-- `getMesActual()` de `dates.ts` sirve para el mes por defecto
+Estados posibles: `'en_progreso'` | `'completada'` | `'cancelada'`
