@@ -1,6 +1,6 @@
 # FINPER — Estado del proyecto
 
-> Última actualización: 2026-03-05 (rev 3)
+> Última actualización: 2026-03-05 (rev 5)
 > Fase actual: **Frontend completo** — todos los módulos implementados ✅
 
 ---
@@ -127,5 +127,15 @@ Opciones en orden de prioridad:
 - **Edición completa (2026-03-05 rev3)**: PUT /:id acepta nombre, notas, tasaAnual (para cualquier subtipo), capitalInicial, plazoMeses. Restricción tasaAnual solo para tasa_variable eliminada. InstrumentoEditForm.tsx muestra todos los campos; plazoMeses solo si tasa_fija.
 - **Pagos históricos (2026-03-05 rev3)**: POST /:id/pagos-historicos registra N pagos en bloque. Valida: tipo credito+tasa_fija, sin movimientos previos, numeroPagos <= plazo total. Crea movimientoInstrumento + transacciones contables (transferencia capital + gasto intereses) en una $transaction. Frontend: PagosHistoricosForm.tsx con preview en tiempo real (periodo resultante, saldo insoluto, capital, intereses).
 - `InstrumentoListado` incluye `tasaAnual`, `capitalInicial`, `plazoMeses` para pre-poblar forms de edición/históricos.
-- **Bug corregido anterior (2026-03-05)**: `calcularSaldoVariable` usaba `cuenta.saldoInicial` en vez de `instrumento.capitalInicial`. Fix en `instrumentos.service.ts` y `dashboard.router.ts`.
+- **Bug crítico corregido (2026-03-05 rev4 — FLISING)**: `listarInstrumentos` ramificaba SOLO por subtipo, ignorando `tipo`. Fix: rama ahora es `tipo === 'credito' && subtipo === 'tasa_fija'` para amortización.
+- **Tabla de capitalización (rev4)**: inversión tasa_fija → `calcularTablaCapitalizacion` (saldo crece). Crédito tasa_fija → `calcularTablaAmortizacion` (saldo baja). `obtenerTabla` despacha según `tipo`.
+- **Fix UX (rev4)**: botón "Registrar ajuste" solo visible para `subtipo === 'tasa_variable'`.
+- **Saldo inversión tasa_fija con interés compuesto (rev5)**: inversión tasa_fija mostraba capitalInicial como saldo porque usaba `calcularSaldoVariable` (suma movimientos, ignora tiempo). Fix: nuevo método `calcularSaldoTasaFijaInversion` con fórmula:
+  - `periodosTranscurridos = floor((hoy - fechaInicio) / periodicidadDias)`
+  - `saldoCompuesto = capitalInicial × (1 + tasaPeriodo)^periodosTranscurridos`
+  - `saldoActual = saldoCompuesto + aportaciones - rescates + ajustesManuales`
+  - `rendimientoAcumulado = saldoActual - capitalInicial`
+  - Aplicado en `listarInstrumentos` (service) y en el bloque inversiones de `dashboard.router.ts`.
+- **Bug corregido anterior**: `calcularSaldoVariable` usaba `cuenta.saldoInicial` en vez de `instrumento.capitalInicial`. Fix en `instrumentos.service.ts` y `dashboard.router.ts`.
 - **Decisión de diseño**: al crear instrumento de inversión con capitalInicial > 0, se crea automáticamente una transacción de tipo `ingreso` en la cuenta asociada con la categoría "Capital inicial" (auto-creada).
+- **Deuda técnica (rev4)**: si una inversión tasa_fija fue creada antes de que existiera el flujo correcto y no tiene transacción "Capital inicial" en la cuenta, el saldo de la cuenta no reflejará la inversión. Solución manual: INSERT en `transacciones` con tipo='ingreso', cuenta_origen_id=cuenta_del_instrumento, monto=capital_inicial, descripcion='Capital inicial {nombre}', categoria_id=(id de categoría 'Capital inicial').

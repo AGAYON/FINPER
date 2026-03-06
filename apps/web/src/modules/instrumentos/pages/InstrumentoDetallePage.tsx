@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CreditCard, TrendingUp, Archive, Pencil, History } from 'lucide-react';
+import { ArrowLeft, CreditCard, TrendingUp, Archive, Pencil, History, Trash2 } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/currency';
 import {
     useInstrumentos,
     useInstrumentoTabla,
     useArchivarInstrumento,
+    useEliminarInstrumento,
     useRegistrarPago,
     useRegistrarAjuste,
     useRegistrarPagosHistoricos,
@@ -23,6 +24,7 @@ export function InstrumentoDetallePage() {
     const { instrumentos, isLoading: loadingList, isError: errorList, editarInstrumento, isEditing } = useInstrumentos();
     const { data: tabla = [], isLoading: loadingTabla } = useInstrumentoTabla(id ?? null);
     const archivarMutation = useArchivarInstrumento();
+    const eliminarMutation = useEliminarInstrumento();
     const registrarPago = useRegistrarPago(id ?? '');
     const registrarAjuste = useRegistrarAjuste(id ?? '');
     const { cuentas } = useCuentas();
@@ -33,11 +35,15 @@ export function InstrumentoDetallePage() {
     const [modalAjuste, setModalAjuste] = useState(false);
     const [modalEditar, setModalEditar] = useState(false);
     const [modalHistorico, setModalHistorico] = useState(false);
-    const [confirmarArchivar, setConfirmarArchivar] = useState(false);
+    const [modalArchivar, setModalArchivar] = useState(false);
+    const [modalEliminar, setModalEliminar] = useState(false);
+    const [eliminarPaso2, setEliminarPaso2] = useState(false);
 
     const instrumento = id ? instrumentos.find((i) => i.id === id) : null;
     const esCreditoTasaFija =
         instrumento?.tipo === 'credito' && instrumento?.subtipo === 'tasa_fija';
+    const esInversionTasaFija =
+        instrumento?.tipo === 'inversion' && instrumento?.subtipo === 'tasa_fija';
     const periodoPagadoCount = esCreditoTasaFija && instrumento?.periodosRestantes != null
         ? Math.max(0, tabla.length - instrumento.periodosRestantes)
         : 0;
@@ -45,6 +51,11 @@ export function InstrumentoDetallePage() {
     const cuentaNombre = instrumento
         ? cuentas.find((c) => c.id === instrumento.cuentaId)?.nombre ?? instrumento.cuentaId
         : '';
+
+    const tieneMovimientos = instrumento
+        ? (instrumento.porcentajePagado ?? 0) > 0 ||
+          (instrumento.rendimientoAcumulado != null && instrumento.rendimientoAcumulado !== 0)
+        : false;
 
     const handleRegistrarPago = async (data: PagoInput) => {
         if (!id) return;
@@ -71,12 +82,28 @@ export function InstrumentoDetallePage() {
     };
 
     const handleArchivar = async () => {
-        if (!id || !confirmarArchivar) {
-            setConfirmarArchivar(true);
-            return;
-        }
+        if (!id) return;
         await archivarMutation.mutateAsync(id);
         navigate('/instrumentos');
+    };
+
+    const handleEliminarPaso1 = () => {
+        if (tieneMovimientos) {
+            setEliminarPaso2(true);
+        } else {
+            handleEliminarConfirmar();
+        }
+    };
+
+    const handleEliminarConfirmar = async () => {
+        if (!id) return;
+        await eliminarMutation.mutateAsync(id);
+        navigate('/instrumentos');
+    };
+
+    const cerrarModalEliminar = () => {
+        setModalEliminar(false);
+        setEliminarPaso2(false);
     };
 
     if (loadingList || !id) {
@@ -182,37 +209,22 @@ export function InstrumentoDetallePage() {
                                 <Pencil className="h-4 w-4" />
                                 Editar
                             </button>
-                            {!confirmarArchivar ? (
-                                <button
-                                    type="button"
-                                    onClick={() => setConfirmarArchivar(true)}
-                                    className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-                                >
-                                    <Archive className="h-4 w-4" />
-                                    Archivar instrumento
-                                </button>
-                            ) : (
-                                <>
-                                    <span className="text-sm text-gray-600 self-center">
-                                        ¿Archivar?
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={handleArchivar}
-                                        disabled={archivarMutation.isPending}
-                                        className="rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
-                                    >
-                                        Sí, archivar
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setConfirmarArchivar(false)}
-                                        className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                                    >
-                                        Cancelar
-                                    </button>
-                                </>
-                            )}
+                            <button
+                                type="button"
+                                onClick={() => setModalArchivar(true)}
+                                className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                            >
+                                <Archive className="h-4 w-4" />
+                                Archivar instrumento
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setEliminarPaso2(false); setModalEliminar(true); }}
+                                className="inline-flex items-center gap-2 rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-600 shadow-sm hover:bg-red-50"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                                Eliminar instrumento
+                            </button>
                         </div>
                     </div>
                 )}
@@ -225,7 +237,7 @@ export function InstrumentoDetallePage() {
                                 {formatCurrency(instrumento.saldoActual ?? 0)}
                             </p>
                         </div>
-                        {instrumento.rendimientoAcumulado != null && (
+                        {instrumento.rendimientoAcumulado != null && instrumento.rendimientoAcumulado !== 0 && (
                             <div>
                                 <p className="text-sm text-gray-500">Rendimiento acumulado</p>
                                 <p className="text-xl font-semibold text-green-600">
@@ -233,21 +245,41 @@ export function InstrumentoDetallePage() {
                                 </p>
                             </div>
                         )}
-                        <button
-                            type="button"
-                            onClick={() => setModalAjuste(true)}
-                            className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
-                        >
-                            Registrar ajuste
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setModalEditar(true)}
-                            className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-                        >
-                            <Pencil className="h-4 w-4" />
-                            Editar
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                            {instrumento.subtipo === 'tasa_variable' && (
+                                <button
+                                    type="button"
+                                    onClick={() => setModalAjuste(true)}
+                                    className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
+                                >
+                                    Registrar ajuste
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setModalEditar(true)}
+                                className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                            >
+                                <Pencil className="h-4 w-4" />
+                                Editar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setModalArchivar(true)}
+                                className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                            >
+                                <Archive className="h-4 w-4" />
+                                Archivar instrumento
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setEliminarPaso2(false); setModalEliminar(true); }}
+                                className="inline-flex items-center gap-2 rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-600 shadow-sm hover:bg-red-50"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                                Eliminar instrumento
+                            </button>
+                        </div>
                     </div>
                 )}
             </header>
@@ -325,7 +357,57 @@ export function InstrumentoDetallePage() {
                 </section>
             )}
 
-            {!esCreditoTasaFija && (
+            {/* Tabla de capitalización para inversiones tasa fija */}
+            {esInversionTasaFija && (
+                <section className="mb-8">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-3">
+                        Tabla de capitalización proyectada
+                    </h2>
+                    {loadingTabla ? (
+                        <p className="text-gray-500">Cargando tabla…</p>
+                    ) : tabla.length === 0 ? (
+                        <p className="text-sm text-gray-500">Sin datos de capitalización.</p>
+                    ) : (
+                        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+                            <table className="min-w-full divide-y divide-gray-200 text-sm">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-3 py-2 text-left font-medium text-gray-700">
+                                            Periodo
+                                        </th>
+                                        <th className="px-3 py-2 text-left font-medium text-gray-700">
+                                            Fecha
+                                        </th>
+                                        <th className="px-3 py-2 text-right font-medium text-gray-700">
+                                            Interés
+                                        </th>
+                                        <th className="px-3 py-2 text-right font-medium text-gray-700">
+                                            Saldo proyectado
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200">
+                                    {tabla.map((fila) => (
+                                        <tr key={fila.periodo} className="text-gray-900">
+                                            <td className="px-3 py-2">{fila.periodo}</td>
+                                            <td className="px-3 py-2">{fila.fecha}</td>
+                                            <td className="px-3 py-2 text-right text-green-700">
+                                                + {formatCurrency(fila.interes)}
+                                            </td>
+                                            <td className="px-3 py-2 text-right font-medium">
+                                                {formatCurrency(fila.saldo)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </section>
+            )}
+
+            {/* Datos básicos para inversiones tasa variable */}
+            {!esCreditoTasaFija && !esInversionTasaFija && (
                 <section className="rounded-lg border border-gray-200 bg-white p-4">
                     <h2 className="text-lg font-semibold text-gray-900 mb-3">
                         Datos del instrumento
@@ -424,6 +506,107 @@ export function InstrumentoDetallePage() {
                             onCancelar={() => setModalHistorico(false)}
                             isLoading={registrarPagosHistoricos.isPending}
                         />
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Archivar */}
+            {modalArchivar && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                    role="dialog"
+                    aria-modal="true"
+                >
+                    <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+                        <h2 className="text-base font-semibold text-gray-900 mb-2">
+                            Archivar instrumento
+                        </h2>
+                        <p className="text-sm text-gray-600 mb-4">
+                            ¿Archivar este instrumento? Dejará de aparecer en el listado pero sus datos se conservan.
+                        </p>
+                        <div className="flex gap-2 justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setModalArchivar(false)}
+                                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleArchivar}
+                                disabled={archivarMutation.isPending}
+                                className="rounded-md bg-gray-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                            >
+                                Sí, archivar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Eliminar — 2 pasos */}
+            {modalEliminar && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                    role="dialog"
+                    aria-modal="true"
+                >
+                    <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+                        {!eliminarPaso2 ? (
+                            <>
+                                <h2 className="text-base font-semibold text-gray-900 mb-2">
+                                    Eliminar instrumento
+                                </h2>
+                                <p className="text-sm text-gray-600 mb-4">
+                                    ¿Estás seguro? Esta acción es permanente. El instrumento y todos sus movimientos serán eliminados.
+                                </p>
+                                <div className="flex gap-2 justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={cerrarModalEliminar}
+                                        className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleEliminarPaso1}
+                                        className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+                                    >
+                                        Continuar
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <h2 className="text-base font-semibold text-gray-900 mb-2">
+                                    Confirmar eliminación
+                                </h2>
+                                <div className="rounded-md bg-amber-50 border border-amber-200 p-3 mb-4">
+                                    <p className="text-sm text-amber-800">
+                                        Las transacciones contables generadas por este instrumento se conservarán en tu historial financiero, pero ya no estarán vinculadas a ningún instrumento.
+                                    </p>
+                                </div>
+                                <div className="flex gap-2 justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={cerrarModalEliminar}
+                                        className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleEliminarConfirmar}
+                                        disabled={eliminarMutation.isPending}
+                                        className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                                    >
+                                        Confirmar eliminación
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

@@ -113,6 +113,17 @@ instrumentosRouter.put('/:id', async (req, res, next) => {
     }
 });
 
+// DELETE /api/instrumentos/:id — Eliminar permanentemente (con movimientos)
+instrumentosRouter.delete('/:id', async (req, res, next) => {
+    try {
+        const id = UUID.parse(req.params.id);
+        const resultado = await service.eliminarInstrumento(id);
+        res.json(resultado);
+    } catch (err) {
+        next(err);
+    }
+});
+
 // PATCH /api/instrumentos/:id/archivar — Soft delete (activo = false)
 instrumentosRouter.patch('/:id/archivar', async (req, res, next) => {
     try {

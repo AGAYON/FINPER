@@ -103,6 +103,16 @@ export function useArchivarInstrumento() {
     });
 }
 
+export function useEliminarInstrumento() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => client.delete<{ eliminado: boolean }>(`${API_BASE}/${id}`),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+        },
+    });
+}
+
 export function useRegistrarPagosHistoricos(id: string) {
     const queryClient = useQueryClient();
     return useMutation({

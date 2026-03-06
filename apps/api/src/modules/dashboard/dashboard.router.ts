@@ -248,7 +248,55 @@ dashboardRouter.get('/', async (_req, res, next) => {
                             ? Number(porcentajePagado.toFixed(1))
                             : null,
                 });
+            } else if (inst.tipo === 'inversion' && inst.subtipo === 'tasa_fija') {
+                // Inversión tasa fija: interés compuesto periodo a periodo desde fechaInicio
+                const capitalInicial = Number(inst.capitalInicial ?? 0);
+                if (!capitalInicial || !inst.tasaAnual || !inst.fechaInicio || !inst.periodicidadDias) {
+                    inversiones.push({
+                        nombre: inst.nombre,
+                        saldo_actual: capitalInicial,
+                        rendimiento_acumulado: 0,
+                    });
+                    continue;
+                }
+
+                const tasaAnual = Number(inst.tasaAnual);
+                const periodicidadDias = Number(inst.periodicidadDias);
+                const fechaInicio = inst.fechaInicio as Date;
+
+                const MS_POR_DIA = 24 * 60 * 60 * 1000;
+                const diasTranscurridos = Math.max(
+                    0,
+                    (hoy.getTime() - fechaInicio.getTime()) / MS_POR_DIA,
+                );
+                const periodosTranscurridos = Math.floor(diasTranscurridos / periodicidadDias);
+                const tasaPeriodo = tasaAnual / (365 / periodicidadDias);
+                const saldoCompuesto =
+                    capitalInicial * Math.pow(1 + tasaPeriodo, periodosTranscurridos);
+
+                const movimientosInv = await db.movimientoInstrumento.findMany({
+                    where: { instrumentoId: inst.id },
+                });
+                const aportaciones = movimientosInv
+                    .filter((m) => m.tipo === 'aportacion')
+                    .reduce((sum, m) => sum + Number(m.montoTotal), 0);
+                const rescates = movimientosInv
+                    .filter((m) => m.tipo === 'rescate')
+                    .reduce((sum, m) => sum + Number(m.montoTotal), 0);
+                const ajustesManuales = movimientosInv
+                    .filter((m) => m.tipo === 'ajuste')
+                    .reduce((sum, m) => sum + Number(m.montoTotal), 0);
+
+                const saldoActual = saldoCompuesto + aportaciones - rescates + ajustesManuales;
+                const rendimientoAcumulado = saldoActual - capitalInicial;
+
+                inversiones.push({
+                    nombre: inst.nombre,
+                    saldo_actual: Number(saldoActual.toFixed(2)),
+                    rendimiento_acumulado: Number(rendimientoAcumulado.toFixed(2)),
+                });
             } else if (inst.tipo === 'inversion') {
+                // Inversión tasa_variable: saldo = capitalInicial + movimientos registrados
                 const movimientos = await db.movimientoInstrumento.findMany({
                     where: { instrumentoId: inst.id },
                 });

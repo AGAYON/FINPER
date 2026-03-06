@@ -89,6 +89,50 @@ export class InstrumentosService {
         return tabla;
     }
 
+    /**
+     * Tabla de capitalización para inversiones de tasa fija.
+     * El saldo crece cada periodo: saldo_nuevo = saldo_anterior + (saldo_anterior * tasaPeriodo).
+     * Reutiliza AmortizacionPeriodo; "capital" = 0 (no hay amortización), "cuota" = interés ganado.
+     */
+    private calcularTablaCapitalizacion(row: any): AmortizacionPeriodo[] {
+        this.ensureTasaFijaCampos(row);
+
+        const capitalInicial = Number(row.capitalInicial);
+        const tasaAnual = Number(row.tasaAnual);
+        const plazoMeses = Number(row.plazoMeses);
+        const periodicidadDias = Number(row.periodicidadDias);
+        const fechaInicio: Date = row.fechaInicio instanceof Date ? row.fechaInicio : new Date(row.fechaInicio);
+
+        const n = Math.round((plazoMeses * 30) / periodicidadDias);
+        if (n <= 0) {
+            throw new AppError('Configuración de plazo inválida para la tabla de capitalización', 400);
+        }
+
+        const tasaPeriodo = tasaAnual / (365 / periodicidadDias);
+        const tabla: AmortizacionPeriodo[] = [];
+        let saldo = capitalInicial;
+
+        for (let i = 1; i <= n; i++) {
+            const interes = saldo * tasaPeriodo;
+            saldo = saldo + interes;
+
+            const fechaPeriodo = new Date(
+                fechaInicio.getTime() + periodicidadDias * i * 24 * 60 * 60 * 1000,
+            );
+
+            tabla.push({
+                periodo: i,
+                fecha: fechaPeriodo.toISOString().slice(0, 10),
+                cuota: Number(interes.toFixed(2)),   // rendimiento del periodo
+                interes: Number(interes.toFixed(2)),
+                capital: 0,                           // no hay amortización
+                saldo: Number(saldo.toFixed(2)),
+            });
+        }
+
+        return tabla;
+    }
+
     private async calcularSaldoTasaFija(instrumentoId: string, capitalInicial: number) {
         const [pagos, ajustes] = await Promise.all([
             db.movimientoInstrumento.findMany({
@@ -112,6 +156,54 @@ export class InstrumentosService {
         const saldoInsoluto = Math.max(0, capitalInicial - totalCapitalPagado + totalAjustes);
 
         return { saldoInsoluto, pagos };
+    }
+
+    /**
+     * Saldo de una inversión tasa_fija.
+     * Aplica interés compuesto desde fechaInicio hasta hoy (periodos completos),
+     * más aportaciones, menos rescates, más ajustes manuales.
+     * rendimientoAcumulado = saldoActual - capitalInicial
+     */
+    private async calcularSaldoTasaFijaInversion(instrumento: any) {
+        this.ensureTasaFijaCampos(instrumento);
+
+        const capitalInicial = Number(instrumento.capitalInicial);
+        const tasaAnual = Number(instrumento.tasaAnual);
+        const periodicidadDias = Number(instrumento.periodicidadDias);
+        const fechaInicio: Date =
+            instrumento.fechaInicio instanceof Date
+                ? instrumento.fechaInicio
+                : new Date(instrumento.fechaInicio);
+
+        const hoy = new Date();
+        const MS_POR_DIA = 24 * 60 * 60 * 1000;
+        const diasTranscurridos = Math.max(
+            0,
+            (hoy.getTime() - fechaInicio.getTime()) / MS_POR_DIA,
+        );
+        const periodosTranscurridos = Math.floor(diasTranscurridos / periodicidadDias);
+
+        const tasaPeriodo = tasaAnual / (365 / periodicidadDias);
+        const saldoCompuesto =
+            capitalInicial * Math.pow(1 + tasaPeriodo, periodosTranscurridos);
+
+        const movimientos = await db.movimientoInstrumento.findMany({
+            where: { instrumentoId: instrumento.id },
+        });
+        const aportaciones = movimientos
+            .filter((m) => m.tipo === 'aportacion')
+            .reduce((sum, m) => sum + Number(m.montoTotal), 0);
+        const rescates = movimientos
+            .filter((m) => m.tipo === 'rescate')
+            .reduce((sum, m) => sum + Number(m.montoTotal), 0);
+        const ajustesManuales = movimientos
+            .filter((m) => m.tipo === 'ajuste')
+            .reduce((sum, m) => sum + Number(m.montoTotal), 0);
+
+        const saldoActual = saldoCompuesto + aportaciones - rescates + ajustesManuales;
+        const rendimientoAcumulado = saldoActual - capitalInicial;
+
+        return { saldoActual, rendimientoAcumulado };
     }
 
     private async calcularSaldoVariable(instrumento: any) {
@@ -147,7 +239,8 @@ export class InstrumentosService {
         for (const inst of instrumentos) {
             const base = this.toListadoBase(inst);
 
-            if (inst.subtipo === 'tasa_fija') {
+            if (inst.tipo === 'credito' && inst.subtipo === 'tasa_fija') {
+                // Crédito tasa fija: amortización, saldo insoluto, próximo pago
                 this.ensureTasaFijaCampos(inst);
                 const capitalInicial = Number(inst.capitalInicial);
                 const tabla = this.calcularTablaAmortizacion(inst);
@@ -189,7 +282,17 @@ export class InstrumentosService {
                         tabla.length - pagos.length,
                     ),
                 });
+            } else if (inst.tipo === 'inversion' && inst.subtipo === 'tasa_fija') {
+                // Inversión tasa fija: interés compuesto desde fechaInicio hasta hoy
+                const { saldoActual, rendimientoAcumulado } =
+                    await this.calcularSaldoTasaFijaInversion(inst);
+                resultados.push({
+                    ...base,
+                    saldoActual: Number(saldoActual.toFixed(2)),
+                    rendimientoAcumulado: Number(rendimientoAcumulado.toFixed(2)),
+                });
             } else {
+                // Inversión tasa_variable: saldo = capitalInicial + movimientos registrados
                 const { saldoActual, rendimientoAcumulado } =
                     await this.calcularSaldoVariable(inst);
                 resultados.push({
@@ -404,6 +507,29 @@ export class InstrumentosService {
         });
     }
 
+    async eliminarInstrumento(id: string) {
+        const instrumento = await db.instrumento.findUnique({ where: { id } });
+        if (!instrumento) {
+            throw new AppError('Instrumento no encontrado', 404);
+        }
+
+        await db.$transaction([
+            // Romper FK con transacciones antes de eliminar movimientos
+            db.movimientoInstrumento.updateMany({
+                where: { instrumentoId: id },
+                data: { transaccionId: null },
+            }),
+            db.movimientoInstrumento.deleteMany({
+                where: { instrumentoId: id },
+            }),
+            db.instrumento.delete({
+                where: { id },
+            }),
+        ]);
+
+        return { eliminado: true };
+    }
+
     async obtenerTabla(id: string, desdePeriodo?: number): Promise<AmortizacionPeriodo[]> {
         const instrumento = await db.instrumento.findUnique({ where: { id } });
         if (!instrumento) {
@@ -411,12 +537,17 @@ export class InstrumentosService {
         }
         if (instrumento.subtipo !== 'tasa_fija') {
             throw new AppError(
-                'Solo los instrumentos de tasa fija tienen tabla de amortización',
+                'Solo los instrumentos de tasa fija tienen tabla de proyección',
                 400,
             );
         }
 
-        const tabla = this.calcularTablaAmortizacion(instrumento);
+        // Crédito → amortización (saldo baja). Inversión → capitalización (saldo sube).
+        const tabla =
+            instrumento.tipo === 'inversion'
+                ? this.calcularTablaCapitalizacion(instrumento)
+                : this.calcularTablaAmortizacion(instrumento);
+
         if (desdePeriodo && desdePeriodo > 1) {
             return tabla.filter((p) => p.periodo >= desdePeriodo);
         }
