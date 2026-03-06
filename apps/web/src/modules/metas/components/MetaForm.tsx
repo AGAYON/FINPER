@@ -15,12 +15,12 @@ export function MetaForm({ cuentas, meta, onSubmit, onCancelar, isLoading }: Met
     const [nombre, setNombre] = useState(meta?.nombre ?? '');
     const [descripcion, setDescripcion] = useState(meta?.descripcion ?? '');
     const [montoObjetivo, setMontoObjetivo] = useState(
-        meta ? String(Number(meta.monto_objetivo)) : '',
+        meta ? String(Number(meta.montoObjetivo)) : '',
     );
     const [fechaLimite, setFechaLimite] = useState(
-        meta?.fecha_limite ? meta.fecha_limite.slice(0, 10) : '',
+        meta?.fechaLimite ? meta.fechaLimite.slice(0, 10) : '',
     );
-    const [cuentaId, setCuentaId] = useState(meta?.cuenta_id ?? '');
+    const [cuentaId, setCuentaId] = useState(meta?.cuentaId ?? '');
     const [color, setColor] = useState(meta?.color ?? COLORES_META[0]);
 
     const [errorValidacion, setErrorValidacion] = useState<string | null>(null);
@@ -47,9 +47,9 @@ export function MetaForm({ cuentas, meta, onSubmit, onCancelar, isLoading }: Met
             const payload: MetaCreateInput = {
                 nombre: nombre.trim(),
                 descripcion: descripcion.trim() || null,
-                monto_objetivo: monto,
-                fecha_limite: fechaLimite || null,
-                cuenta_id: cuentaId || null,
+                montoObjetivo: monto,
+                fechaLimite: fechaLimite || null,
+                cuentaId: cuentaId || null,
                 color,
             };
 

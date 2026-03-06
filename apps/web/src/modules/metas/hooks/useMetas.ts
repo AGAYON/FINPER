@@ -5,6 +5,28 @@ import type { Meta, MetaCreateInput, MetaUpdateInput, AportacionInput } from '..
 const API_BASE = '/api/metas';
 const QUERY_KEY = ['metas'] as const;
 
+export function useArchivarMeta() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) =>
+            client.patch<Meta>(`${API_BASE}/${id}/archivar`, {}),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+        },
+    });
+}
+
+export function useEliminarMeta() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) =>
+            client.delete<{ eliminado: boolean }>(`${API_BASE}/${id}`),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+        },
+    });
+}
+
 export function useMetas() {
     const queryClient = useQueryClient();
 

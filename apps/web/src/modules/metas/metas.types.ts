@@ -4,17 +4,17 @@ export interface Meta {
     id: string;
     nombre: string;
     descripcion?: string | null;
-    monto_objetivo: number | string; // Decimal Prisma → usar Number()
-    monto_actual: number | string;   // Decimal Prisma → usar Number()
-    fecha_limite?: string | null;
-    cuenta_id?: string | null;
+    montoObjetivo: number | string; // Decimal Prisma → usar Number()
+    montoActual: number | string;   // Decimal Prisma → usar Number()
+    fechaLimite?: string | null;
+    cuentaId?: string | null;
     color: string;
     estado: EstadoMeta;
     // Calculados por el backend
     porcentaje: number;
-    dias_restantes?: number | null;
-    fecha_proyectada?: string | null;
-    en_camino?: boolean | null;
+    diasRestantes?: number | null;
+    fechaProyectada?: string | null;
+    enCamino?: boolean | null;
     createdAt: string;
     updatedAt: string;
 }
@@ -22,9 +22,9 @@ export interface Meta {
 export interface MetaCreateInput {
     nombre: string;
     descripcion?: string | null;
-    monto_objetivo: number;
-    fecha_limite?: string | null;
-    cuenta_id?: string | null;
+    montoObjetivo: number;
+    fechaLimite?: string | null;
+    cuentaId?: string | null;
     color?: string;
 }
 

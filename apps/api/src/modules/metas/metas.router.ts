@@ -68,15 +68,28 @@ metasRouter.get('/', async (_req, res, next) => {
             orderBy: { createdAt: 'asc' },
         });
 
-        const resultado = metas.map((m) => ({
-            ...m,
-            proyeccion: calcularProyeccion({
-                montoActual: Number(m.montoActual),
-                montoObjetivo: Number(m.montoObjetivo),
+        const resultado = metas.map((m) => {
+            const montoActual = Number(m.montoActual);
+            const montoObjetivo = Number(m.montoObjetivo);
+            const porcentaje = montoObjetivo > 0 ? (montoActual / montoObjetivo) * 100 : 0;
+            const diasRestantes = m.fechaLimite
+                ? Math.round((m.fechaLimite.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                : null;
+            const { fechaProyectada, enCamino } = calcularProyeccion({
+                montoActual,
+                montoObjetivo,
                 fechaLimite: m.fechaLimite,
                 aportaciones: m.aportaciones.map((a) => ({ monto: Number(a.monto), fecha: a.fecha })),
-            }),
-        }));
+            });
+            return {
+                ...m,
+                estado: (m.completada ? 'completada' : 'en_progreso') as 'en_progreso' | 'completada',
+                porcentaje,
+                diasRestantes,
+                fechaProyectada: fechaProyectada ? fechaProyectada.toISOString() : null,
+                enCamino,
+            };
+        });
 
         res.json(resultado);
     } catch (err) {
@@ -115,6 +128,41 @@ metasRouter.put('/:id', async (req, res, next) => {
             },
         });
         res.json(meta);
+    } catch (err) {
+        next(err);
+    }
+});
+
+// PATCH /api/metas/:id/archivar — Soft delete (completada = true)
+metasRouter.patch('/:id/archivar', async (req, res, next) => {
+    try {
+        const id = UUID.parse(req.params.id);
+        const meta = await db.meta.findUnique({ where: { id } });
+        if (!meta) { res.status(404).json({ error: 'Meta no encontrada' }); return; }
+        const actualizada = await db.meta.update({
+            where: { id },
+            data: { completada: true },
+        });
+        res.json(actualizada);
+    } catch (err) {
+        next(err);
+    }
+});
+
+// DELETE /api/metas/:id — Hard delete permanente
+metasRouter.delete('/:id', async (req, res, next) => {
+    try {
+        const id = UUID.parse(req.params.id);
+        const meta = await db.meta.findUnique({ where: { id } });
+        if (!meta) { res.status(404).json({ error: 'Meta no encontrada' }); return; }
+        await db.$transaction([
+            db.aportacionMeta.updateMany({
+                where: { metaId: id },
+                data: { transaccionId: null },
+            }),
+            db.meta.delete({ where: { id } }),
+        ]);
+        res.json({ eliminado: true });
     } catch (err) {
         next(err);
     }

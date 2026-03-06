@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plus, ChevronDown, ChevronUp } from 'lucide-react';
-import { useMetas } from '../hooks/useMetas';
+import { Plus, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { useMetas, useArchivarMeta, useEliminarMeta } from '../hooks/useMetas';
 import { useCuentas } from '../../cuentas/hooks/useCuentas';
 import { MetaCard } from '../components/MetaCard';
 import { MetaForm } from '../components/MetaForm';
@@ -11,7 +11,9 @@ type ModalEstado =
     | { tipo: 'ninguno' }
     | { tipo: 'crear' }
     | { tipo: 'editar'; meta: Meta }
-    | { tipo: 'aportar'; meta: Meta };
+    | { tipo: 'aportar'; meta: Meta }
+    | { tipo: 'archivar'; meta: Meta }
+    | { tipo: 'eliminar'; meta: Meta; paso: 1 | 2 };
 
 export function MetasPage() {
     const [modal, setModal] = useState<ModalEstado>({ tipo: 'ninguno' });
@@ -28,6 +30,9 @@ export function MetasPage() {
         isUpdating,
         isAportando,
     } = useMetas();
+
+    const archivarMutation = useArchivarMeta();
+    const eliminarMutation = useEliminarMeta();
 
     const { cuentas } = useCuentas();
 
@@ -51,6 +56,18 @@ export function MetasPage() {
         setModal({ tipo: 'ninguno' });
     };
 
+    const handleArchivar = async () => {
+        if (modal.tipo !== 'archivar') return;
+        await archivarMutation.mutateAsync(modal.meta.id);
+        setModal({ tipo: 'ninguno' });
+    };
+
+    const handleEliminar = async () => {
+        if (modal.tipo !== 'eliminar') return;
+        await eliminarMutation.mutateAsync(modal.meta.id);
+        setModal({ tipo: 'ninguno' });
+    };
+
     const modalTitle =
         modal.tipo === 'crear'
             ? 'Nueva meta'
@@ -58,6 +75,10 @@ export function MetasPage() {
             ? 'Editar meta'
             : modal.tipo === 'aportar'
             ? 'Registrar aportación'
+            : modal.tipo === 'archivar'
+            ? 'Archivar meta'
+            : modal.tipo === 'eliminar'
+            ? 'Eliminar meta'
             : '';
 
     return (
@@ -101,6 +122,8 @@ export function MetasPage() {
                             meta={m}
                             onAportar={(meta) => setModal({ tipo: 'aportar', meta })}
                             onEditar={(meta) => setModal({ tipo: 'editar', meta })}
+                            onArchivar={(meta) => setModal({ tipo: 'archivar', meta })}
+                            onEliminar={(meta) => setModal({ tipo: 'eliminar', meta, paso: 1 })}
                         />
                     ))}
                 </div>
@@ -129,6 +152,7 @@ export function MetasPage() {
                                     meta={m}
                                     onAportar={() => {}}
                                     onEditar={() => {}}
+                                    onEliminar={(meta) => setModal({ tipo: 'eliminar', meta, paso: 1 })}
                                 />
                             ))}
                         </div>
@@ -185,6 +209,99 @@ export function MetasPage() {
                                 onCancelar={() => setModal({ tipo: 'ninguno' })}
                                 isLoading={isAportando}
                             />
+                        )}
+
+                        {/* Modal Archivar */}
+                        {modal.tipo === 'archivar' && (
+                            <div className="space-y-4">
+                                <p className="text-sm text-gray-600">
+                                    ¿Archivar la meta <span className="font-medium text-gray-900">"{modal.meta.nombre}"</span>?
+                                    Dejará de aparecer en el listado pero sus datos se conservan.
+                                </p>
+                                <div className="flex justify-end gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setModal({ tipo: 'ninguno' })}
+                                        disabled={archivarMutation.isPending}
+                                        className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleArchivar}
+                                        disabled={archivarMutation.isPending}
+                                        className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                                    >
+                                        {archivarMutation.isPending ? 'Archivando…' : 'Archivar'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Modal Eliminar */}
+                        {modal.tipo === 'eliminar' && (
+                            <div className="space-y-4">
+                                {modal.paso === 1 && (
+                                    <>
+                                        <div className="flex items-start gap-3 rounded-md bg-red-50 p-3">
+                                            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                                            <p className="text-sm text-red-700">
+                                                ¿Estás seguro? Esta acción es <strong>permanente</strong> y no se puede deshacer.
+                                            </p>
+                                        </div>
+                                        <div className="flex justify-end gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setModal({ tipo: 'ninguno' })}
+                                                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const tieneAportaciones = Number(modal.meta.montoActual) > 0;
+                                                    if (tieneAportaciones) {
+                                                        setModal({ tipo: 'eliminar', meta: modal.meta, paso: 2 });
+                                                    } else {
+                                                        handleEliminar();
+                                                    }
+                                                }}
+                                                className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                                            >
+                                                Continuar
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+
+                                {modal.paso === 2 && (
+                                    <>
+                                        <div className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+                                            Las transacciones contables vinculadas a esta meta se conservarán en tu historial.
+                                        </div>
+                                        <div className="flex justify-end gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setModal({ tipo: 'ninguno' })}
+                                                disabled={eliminarMutation.isPending}
+                                                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleEliminar}
+                                                disabled={eliminarMutation.isPending}
+                                                className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                                            >
+                                                {eliminarMutation.isPending ? 'Eliminando…' : 'Eliminar definitivamente'}
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         )}
                     </div>
                 </div>

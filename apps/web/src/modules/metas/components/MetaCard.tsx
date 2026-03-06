@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Target, CalendarClock, TrendingUp, TrendingDown, Pencil, PlusCircle, CheckCircle2, XCircle } from 'lucide-react';
+import { Target, CalendarClock, TrendingUp, TrendingDown, PlusCircle, CheckCircle2, XCircle, MoreHorizontal, Pencil, Archive, Trash2 } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/currency';
 import { ESTADO_META_UI } from '../metas.types';
 import type { Meta } from '../metas.types';
@@ -8,6 +8,8 @@ interface MetaCardProps {
     meta: Meta;
     onAportar: (meta: Meta) => void;
     onEditar: (meta: Meta) => void;
+    onArchivar?: (meta: Meta) => void;
+    onEliminar?: (meta: Meta) => void;
 }
 
 function formatFecha(iso: string): string {
@@ -18,11 +20,12 @@ function formatFecha(iso: string): string {
     });
 }
 
-export function MetaCard({ meta, onAportar, onEditar }: MetaCardProps) {
+export function MetaCard({ meta, onAportar, onEditar, onArchivar, onEliminar }: MetaCardProps) {
     const [expandida, setExpandida] = useState(false);
+    const [menuAbierto, setMenuAbierto] = useState(false);
 
-    const objetivo = Number(meta.monto_objetivo);
-    const actual = Number(meta.monto_actual);
+    const objetivo = Number(meta.montoObjetivo);
+    const actual = Number(meta.montoActual);
     const porcentaje = meta.porcentaje;
     const barraAncho = Math.min(porcentaje, 100);
     const estado = ESTADO_META_UI[meta.estado];
@@ -30,14 +33,16 @@ export function MetaCard({ meta, onAportar, onEditar }: MetaCardProps) {
 
     const proyeccion = (() => {
         if (!activa) return null;
-        if (meta.fecha_proyectada) {
-            if (meta.en_camino) {
-                return { tipo: 'ok' as const, texto: `Llegarás el ${formatFecha(meta.fecha_proyectada)}` };
+        if (meta.fechaProyectada) {
+            if (meta.enCamino) {
+                return { tipo: 'ok' as const, texto: `Llegarás el ${formatFecha(meta.fechaProyectada)}` };
             }
-            return { tipo: 'riesgo' as const, texto: `En riesgo — proyección: ${formatFecha(meta.fecha_proyectada)}` };
+            return { tipo: 'riesgo' as const, texto: `En riesgo — proyección: ${formatFecha(meta.fechaProyectada)}` };
         }
         return null;
     })();
+
+    const mostrarMenu = !!(onEditar || onArchivar || onEliminar);
 
     return (
         <div
@@ -71,15 +76,59 @@ export function MetaCard({ meta, onAportar, onEditar }: MetaCardProps) {
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${estado.bgCls} ${estado.textCls}`}>
                             {estado.label}
                         </span>
-                        {activa && (
-                            <button
-                                type="button"
-                                onClick={() => onEditar(meta)}
-                                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                                title="Editar meta"
-                            >
-                                <Pencil className="h-3.5 w-3.5" />
-                            </button>
+
+                        {/* Menú de acciones */}
+                        {mostrarMenu && (
+                            <div className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => setMenuAbierto((v) => !v)}
+                                    className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                                    title="Acciones"
+                                >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </button>
+
+                                {menuAbierto && (
+                                    <>
+                                        {/* Overlay para cerrar al hacer clic fuera */}
+                                        <div
+                                            className="fixed inset-0 z-10"
+                                            onClick={() => setMenuAbierto(false)}
+                                        />
+                                        <div className="absolute right-0 z-20 mt-1 w-40 rounded-lg border border-gray-100 bg-white py-1 shadow-lg">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setMenuAbierto(false); onEditar(meta); }}
+                                                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                            >
+                                                <Pencil className="h-3.5 w-3.5" />
+                                                Editar
+                                            </button>
+                                            {activa && onArchivar && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setMenuAbierto(false); onArchivar(meta); }}
+                                                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                                >
+                                                    <Archive className="h-3.5 w-3.5" />
+                                                    Archivar
+                                                </button>
+                                            )}
+                                            {onEliminar && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setMenuAbierto(false); onEliminar(meta); }}
+                                                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                    Eliminar
+                                                </button>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         )}
                     </div>
                 </div>
@@ -108,15 +157,15 @@ export function MetaCard({ meta, onAportar, onEditar }: MetaCardProps) {
 
                 {/* Info extra: días restantes + proyección */}
                 <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
-                    {meta.fecha_limite && meta.dias_restantes != null && activa && (
+                    {meta.fechaLimite && meta.diasRestantes != null && activa && (
                         <span className="flex items-center gap-1">
                             <CalendarClock className="h-3.5 w-3.5" />
-                            {meta.dias_restantes > 0
-                                ? `${meta.dias_restantes} días restantes`
+                            {meta.diasRestantes > 0
+                                ? `${meta.diasRestantes} días restantes`
                                 : 'Fecha límite hoy'}
                         </span>
                     )}
-                    {meta.fecha_limite && meta.estado === 'en_progreso' && meta.dias_restantes != null && meta.dias_restantes <= 0 && (
+                    {meta.fechaLimite && meta.estado === 'en_progreso' && meta.diasRestantes != null && meta.diasRestantes <= 0 && (
                         <span className="text-red-600 font-medium">Vencida</span>
                     )}
                     {proyeccion && (
