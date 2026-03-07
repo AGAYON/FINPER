@@ -373,6 +373,16 @@ GET /api/dashboard    Responde todo en una sola llamada:
   }
 ```
 
+### Reportes
+```
+GET /api/reportes?desde=2025-01&hasta=2025-06   Totales y desglose por categoría (solo cuentas origen activas):
+  {
+    totales_mensuales: [{ mes, ingresos, gastos, ratio }],
+    gastos_por_categoria: [{ mes, categoria_id, categoria_nombre, categoria_color, total }],
+    ingresos_por_categoria: [{ mes, categoria_id, categoria_nombre, categoria_color, total }]
+  }
+```
+
 ### Sincronización offline
 ```
 POST /api/sync    Recibe array de operaciones offline y las aplica en orden por created_at
@@ -408,8 +418,11 @@ finanzas-app/
 │   │   │   │   │   ├── instrumentos.router.ts
 │   │   │   │   │   ├── instrumentos.service.ts
 │   │   │   │   │   └── instrumentos.types.ts
+│   │   │   │   ├── reportes/
+│   │   │   │   │   ├── reportes.router.ts
+│   │   │   │   │   └── reportes.service.ts
 │   │   │   │   └── dashboard/
-│   │   │   │       └── dashboard.service.ts
+│   │   │   │       └── dashboard.router.ts
 │   │   │   ├── shared/
 │   │   │   │   ├── db.ts                 # instancia Prisma Client
 │   │   │   │   ├── auth.middleware.ts
@@ -445,6 +458,17 @@ finanzas-app/
 │       │   │   ├── presupuestos/
 │       │   │   ├── metas/
 │       │   │   ├── recurrentes/
+│       │   │   ├── reportes/
+│       │   │   │   ├── components/
+│       │   │   │   │   ├── DonutCategoria.tsx
+│       │   │   │   │   ├── RatioHistorico.tsx
+│       │   │   │   │   ├── ComparativoCategorias.tsx
+│       │   │   │   │   └── TendenciaCategorias.tsx
+│       │   │   │   ├── hooks/
+│       │   │   │   │   └── useReportes.ts
+│       │   │   │   ├── pages/
+│       │   │   │   │   └── ReportesPage.tsx
+│       │   │   │   └── reportes.types.ts
 │       │   │   └── dashboard/
 │       │   │       ├── components/
 │       │   │       │   ├── NetWorthCard.tsx

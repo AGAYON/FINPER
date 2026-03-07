@@ -8,6 +8,7 @@ import {
     Target,
     Repeat,
     CreditCard,
+    BarChart3,
     X,
 } from 'lucide-react';
 
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
     { label: 'Metas', icon: Target, to: '/metas' },
     { label: 'Recurrentes', icon: Repeat, to: '/recurrentes' },
     { label: 'Instrumentos', icon: CreditCard, to: '/instrumentos' },
+    { label: 'Reportes', icon: BarChart3, to: '/reportes' },
 ];
 
 interface SidebarProps {

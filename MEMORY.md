@@ -1,6 +1,6 @@
 # FINPER — Estado del proyecto
 
-> Última actualización: 2026-03-05 (rev 5)
+> Última actualización: 2026-03-07 (rev 6)
 > Fase actual: **Frontend completo** — todos los módulos implementados ✅
 
 ---
@@ -15,7 +15,8 @@
 | **Presupuestos** | ✅ completo | ✅ completo | GET con progreso calculado, resolución default/mes específico, POST, PUT, DELETE. UI: navegación por mes, PresupuestoBarra con semáforo, edición inline de límite, eliminar con confirmación, FAB + modal crear |
 | **Metas** | ✅ completo | ✅ completo | GET con proyección automática, POST, PUT, POST aportación (transacción DB). UI: MetaCard con barra de progreso, proyección en_camino, botón Aportar, editar, separación activas/finalizadas colapsable |
 | **Recurrentes** | ✅ completo | ✅ completo | GET con próxima fecha calculada, POST, PUT, POST ejecutar (transacción DB). UI: lista activos/inactivos colapsables, badge pendiente, botón Ejecutar con feedback de éxito, toggle activo/inactivo, modal crear/editar |
-| **Dashboard** | ✅ completo | ✅ completo | Consolida net worth, mes actual, presupuestos, recurrentes pendientes, metas, snapshots. Genera snapshot diario. |
+| **Dashboard** | ✅ completo | ✅ completo | Consolida net worth, mes actual, presupuestos, recurrentes pendientes, metas, snapshots. Genera snapshot diario. Incluye resumen reportes (donut gastos + ratio 6 meses) y card "Ver reportes completos". |
+| **Reportes** | ✅ completo | ✅ completo | GET /api/reportes?desde=&hasta= con totales_mensuales, gastos_por_categoria, ingresos_por_categoria. UI: DonutCategoria, RatioHistorico, ComparativoCategorias, TendenciaCategorias. Selector 3/6/12 meses. Ruta /reportes, link en Sidebar. |
 | **Sync offline** | ⚠️ parcial | — | Endpoint existe y valida body. TODO: la lógica de aplicar operaciones no está implementada — solo retorna `ok: true` sin ejecutar nada. |
 | **Instrumentos** | ✅ completo | ✅ completo | Créditos (tasa fija) e inversiones (tasa variable). Listado por tipo, InstrumentoCard con barra de progreso, detalle con tabla de amortización, PagoForm/AjusteVariableForm/InstrumentoEditForm en modal, archivar con confirmación. Botón editar en card y detalle. Integrado en dashboard. Pagos históricos: POST /:id/pagos-historicos registra N pagos retroactivos en bloque. |
 
@@ -40,6 +41,7 @@
 - **Edición de límite inline en PresupuestoBarra**: sin modal separado — input + botones Guardar/Cancelar aparecen en la misma tarjeta. Eliminar sigue el patrón de confirmación de dos clics de TransaccionItem.
 - **Badge "Default" en presupuestos**: los presupuestos con `mes=null` muestran badge índigo "Default" para distinguirlos visualmente de los específicos del mes.
 - **Instrumentos frontend**: Sin componente CurrencyDisplay en shared; se usa `formatCurrency` de `shared/utils/currency` en todo el módulo (igual que Cuentas). Modales con overlay + div centrado (patrón de CuentasPage).
+- **Reportes**: Backend con Prisma `$queryRaw` y `GROUP BY categoria_id, DATE_TRUNC('month', fecha)` sobre `transacciones`; solo cuentas origen activas. Respuesta única con totales_mensuales (ratio = ingresos/gastos), gastos_por_categoria e ingresos_por_categoria. Frontend queryKey `['reportes', { desde, hasta }]`. Donuts usan `categoria_color` (hex). Dashboard usa `useReportes(6)` para mini donut gastos y mini bar ratio; no bloquea si falla.
 
 ---
 
