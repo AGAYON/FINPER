@@ -79,7 +79,11 @@ export class CuentasService {
             Number(salidasTransfer._sum.monto ?? 0) +
             Number(salidasAjuste._sum.monto ?? 0);
 
-        return saldoInicial + entradas - salidas;
+        // Cuentas pasivo: un gasto aumenta la deuda, un ingreso/abono la disminuye
+        const esPasivo = cuenta.tipo === 'credito' || cuenta.tipo === 'prestamo';
+        return esPasivo
+            ? saldoInicial + salidas - entradas
+            : saldoInicial + entradas - salidas;
     }
 
     /** Obtiene una cuenta por id con saldo actual calculado. Lanza AppError 404 si no existe. */
