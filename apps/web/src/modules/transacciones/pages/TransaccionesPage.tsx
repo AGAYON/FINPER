@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, CheckSquare, X } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/currency';
 import { useTransacciones } from '../hooks/useTransacciones';
 import { useCuentas } from '../../cuentas/hooks/useCuentas';
@@ -27,6 +27,21 @@ type ModalEstado =
 export function TransaccionesPage() {
     const [filtros, setFiltros] = useState<TransaccionFiltros>(FILTROS_DEFAULT);
     const [modal, setModal] = useState<ModalEstado>(null);
+    const [modoSeleccion, setModoSeleccion] = useState(false);
+    const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
+
+    const toggleSeleccion = (id: string) => {
+        setSeleccionados((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
+
+    const cancelarSeleccion = () => {
+        setModoSeleccion(false);
+        setSeleccionados(new Set());
+    };
 
     const {
         transacciones,
@@ -79,8 +94,17 @@ export function TransaccionesPage() {
         .filter((t) => t.tipo === 'gasto')
         .reduce((s, t) => s + Number(t.monto), 0);
 
+    // Total acumulado de la selección
+    const totalSeleccion = transacciones
+        .filter((t) => seleccionados.has(t.id))
+        .reduce((s, t) => {
+            if (t.tipo === 'ingreso') return s + Number(t.monto);
+            if (t.tipo === 'gasto') return s - Number(t.monto);
+            return s; // transferencia y ajuste = 0
+        }, 0);
+
     return (
-        <div className="min-h-screen bg-gray-50 p-4 pb-24 sm:p-6">
+        <div className={`min-h-screen bg-gray-50 p-4 sm:p-6 ${modoSeleccion ? 'pb-32' : 'pb-24'}`}>
             {/* Header */}
             <header className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -97,6 +121,22 @@ export function TransaccionesPage() {
                         )}
                     </p>
                 </div>
+                {transacciones.length > 0 && (
+                    <button
+                        type="button"
+                        onClick={modoSeleccion ? cancelarSeleccion : () => setModoSeleccion(true)}
+                        className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm ${
+                            modoSeleccion
+                                ? 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                                : 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                        }`}
+                    >
+                        {modoSeleccion
+                            ? <><X className="h-4 w-4" /> Cancelar</>
+                            : <><CheckSquare className="h-4 w-4" /> Seleccionar</>
+                        }
+                    </button>
+                )}
             </header>
 
             {/* Filtros */}
@@ -141,6 +181,9 @@ export function TransaccionesPage() {
                             onEditar={(tx) => setModal({ tipo: 'editar', transaccion: tx })}
                             onEliminar={handleEliminar}
                             isDeleting={isDeleting}
+                            modoSeleccion={modoSeleccion}
+                            seleccionado={seleccionados.has(t.id)}
+                            onToggleSeleccion={toggleSeleccion}
                         />
                     ))}
                 </div>
@@ -170,6 +213,27 @@ export function TransaccionesPage() {
                         Siguiente
                         <ChevronRight className="h-4 w-4" />
                     </button>
+                </div>
+            )}
+
+            {/* Sticky bottom bar — selección múltiple */}
+            {modoSeleccion && (
+                <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white px-4 py-3 shadow-lg sm:px-6">
+                    <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
+                        <p className="text-sm font-medium text-gray-700">
+                            {seleccionados.size} seleccionada{seleccionados.size !== 1 ? 's' : ''}
+                        </p>
+                        <p className={`text-lg font-bold tabular-nums ${
+                            totalSeleccion > 0
+                                ? 'text-green-600'
+                                : totalSeleccion < 0
+                                ? 'text-red-600'
+                                : 'text-gray-500'
+                        }`}>
+                            {totalSeleccion >= 0 ? '+' : ''}
+                            {formatCurrency(totalSeleccion)}
+                        </p>
+                    </div>
                 </div>
             )}
 

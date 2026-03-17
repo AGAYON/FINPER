@@ -4,7 +4,7 @@ import {
     Home, Zap, Heart, Stethoscope, Dumbbell, Plane,
     Book, GraduationCap, Monitor, Music, Gift, Wrench,
     Briefcase, DollarSign, TrendingUp, PawPrint, Baby, Scissors, Circle,
-    ArrowRight, Pencil, Trash2, X,
+    ArrowRight, Pencil, Trash2, X, CheckSquare, Square,
 } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/currency';
 import { formatDate } from '../../../shared/utils/dates';
@@ -23,6 +23,9 @@ interface TransaccionItemProps {
     onEditar: (t: Transaccion) => void;
     onEliminar: (t: Transaccion) => void;
     isDeleting?: boolean;
+    modoSeleccion?: boolean;
+    seleccionado?: boolean;
+    onToggleSeleccion?: (id: string) => void;
 }
 
 export function TransaccionItem({
@@ -30,6 +33,9 @@ export function TransaccionItem({
     onEditar,
     onEliminar,
     isDeleting,
+    modoSeleccion = false,
+    seleccionado = false,
+    onToggleSeleccion,
 }: TransaccionItemProps) {
     const [confirmar, setConfirmar] = useState(false);
 
@@ -50,7 +56,22 @@ export function TransaccionItem({
     };
 
     return (
-        <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:p-4">
+        <div
+            className={`flex items-start gap-3 rounded-lg border bg-white p-3 shadow-sm sm:p-4 ${
+                modoSeleccion ? 'cursor-pointer select-none' : ''
+            } ${seleccionado ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200'}`}
+            onClick={modoSeleccion ? () => onToggleSeleccion?.(t.id) : undefined}
+        >
+            {/* Checkbox en modo selección */}
+            {modoSeleccion && (
+                <div className="mt-0.5 shrink-0">
+                    {seleccionado
+                        ? <CheckSquare className="h-5 w-5 text-indigo-600" />
+                        : <Square className="h-5 w-5 text-gray-400" />
+                    }
+                </div>
+            )}
+
             {/* Indicador de categoría o tipo */}
             <div
                 className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
@@ -116,49 +137,51 @@ export function TransaccionItem({
                     <p className="mt-1 text-xs text-gray-400 italic truncate">{t.notas}</p>
                 )}
 
-                {/* Acciones */}
-                <div className="mt-2 flex flex-wrap gap-2">
-                    <button
-                        type="button"
-                        onClick={() => onEditar(t)}
-                        className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
-                    >
-                        <Pencil className="h-3.5 w-3.5" />
-                        Editar
-                    </button>
-
-                    {!confirmar ? (
+                {/* Acciones — ocultas en modo selección */}
+                {!modoSeleccion && (
+                    <div className="mt-2 flex flex-wrap gap-2">
                         <button
                             type="button"
-                            onClick={handleEliminar}
-                            disabled={isDeleting}
-                            className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                            onClick={() => onEditar(t)}
+                            className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
                         >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            Eliminar
+                            <Pencil className="h-3.5 w-3.5" />
+                            Editar
                         </button>
-                    ) : (
-                        <>
-                            <span className="self-center text-xs text-gray-500">¿Confirmar?</span>
+
+                        {!confirmar ? (
                             <button
                                 type="button"
                                 onClick={handleEliminar}
                                 disabled={isDeleting}
-                                className="inline-flex items-center gap-1 rounded border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+                                className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                             >
-                                Sí, eliminar
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Eliminar
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => setConfirmar(false)}
-                                className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
-                            >
-                                <X className="h-3.5 w-3.5" />
-                                Cancelar
-                            </button>
-                        </>
-                    )}
-                </div>
+                        ) : (
+                            <>
+                                <span className="self-center text-xs text-gray-500">¿Confirmar?</span>
+                                <button
+                                    type="button"
+                                    onClick={handleEliminar}
+                                    disabled={isDeleting}
+                                    className="inline-flex items-center gap-1 rounded border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+                                >
+                                    Sí, eliminar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setConfirmar(false)}
+                                    className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                    Cancelar
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

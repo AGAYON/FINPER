@@ -10,7 +10,7 @@
 | Módulo | Backend | Frontend | Notas |
 |---|---|---|---|
 | **Cuentas** | ✅ completo | ✅ completo | CRUD, saldo calculado, resumen activos/pasivos/net worth, modal crear/editar, archivar |
-| **Transacciones** | ✅ completo | ✅ completo | GET paginado con filtros, GET detalle, POST, PUT, DELETE. UI: lista paginada, FiltroBarra, TransaccionForm (3 tipos), FAB "+", editar/eliminar con confirmación |
+| **Transacciones** | ✅ completo | ✅ completo | GET paginado con filtros, GET detalle, POST, PUT, DELETE. UI: lista paginada, FiltroBarra, TransaccionForm (3 tipos), FAB "+", editar/eliminar con confirmación, modo selección múltiple con suma acumulada |
 | **Categorías** | ✅ completo | ✅ completo | GET agrupadas por tipo, POST, PUT, PATCH archivar. UI: lista por sección ingreso/gasto, grid de iconos, paleta de color, modal crear/editar |
 | **Presupuestos** | ✅ completo | ✅ completo | GET con progreso calculado, resolución default/mes específico, POST, PUT, DELETE. UI: navegación por mes, PresupuestoBarra con semáforo, edición inline de límite, eliminar con confirmación, FAB + modal crear |
 | **Metas** | ✅ completo | ✅ completo | GET con proyección automática, POST, PUT, POST aportación (transacción DB). UI: MetaCard con barra de progreso, proyección en_camino, botón Aportar, editar, separación activas/finalizadas colapsable |
@@ -94,6 +94,22 @@ curl localhost:5173/api/cuentas               # verificar proxy Vite → API
 Opciones en orden de prioridad:
 1. **Conectar autenticación JWT** (deuda técnica #1): aplicar `auth.middleware.ts` en todos los routers y hacer que el frontend maneje login/logout con el token.
 2. **Implementar sync offline** (deuda técnica #2): el endpoint `POST /api/sync` existe pero no aplica las operaciones — implementar la lógica en el backend y conectar el `offlineQueue` del frontend.
+
+## Modo selección múltiple — Transacciones (2026-03-17)
+- Estado local en `TransaccionesPage`: `modoSeleccion: boolean` + `seleccionados: Set<string>`
+- Botón "Seleccionar" / "Cancelar" en el header (visible solo cuando hay transacciones en la lista)
+- `toggleSeleccion(id)` usa `setSeleccionados` con copia inmutable de Set
+- `cancelarSeleccion()` resetea ambos estados a false / Set vacío
+- `TransaccionItem` acepta props opcionales: `modoSeleccion?`, `seleccionado?`, `onToggleSeleccion?`
+  - En modo selección: el item completo es clickeable, muestra `CheckSquare`/`Square` (Lucide), borde/fondo índigo si seleccionado, acciones Editar/Eliminar ocultas
+  - Sin modo selección: comportamiento idéntico al original
+- Sticky bottom bar (`fixed bottom-0`): visible solo en modo selección
+  - Muestra: "{N} seleccionada(s)" + total acumulado con signo
+  - Lógica de suma: `ingreso → +monto`, `gasto → −monto`, `transferencia/ajuste → 0`
+  - Color del total: verde si > 0, rojo si < 0, gris si = 0
+  - Usa `formatCurrency(totalSeleccion)` y signo manual `totalSeleccion >= 0 ? '+' : ''`
+- Padding inferior del contenedor: `pb-32` en modo selección, `pb-24` normal (para no tapar la barra)
+- No requiere cambios de backend. No usa React Query ni Zustand.
 
 ## Convenciones recurrentes ✅ (frontend completo)
 - monto llega de Prisma como string → convertir con Number()
