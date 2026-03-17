@@ -218,7 +218,7 @@ export function TransaccionesPage() {
 
             {/* Sticky bottom bar — selección múltiple */}
             {modoSeleccion && (
-                <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white px-4 py-3 shadow-lg sm:px-6">
+                <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white px-4 py-3 shadow-lg sm:px-6">
                     <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
                         <p className="text-sm font-medium text-gray-700">
                             {seleccionados.size} seleccionada{seleccionados.size !== 1 ? 's' : ''}
@@ -237,24 +237,26 @@ export function TransaccionesPage() {
                 </div>
             )}
 
-            {/* FAB — botón flotante "+" con menú de tipo */}
-            <div className="fixed bottom-6 right-6 z-40 flex flex-col-reverse items-end gap-2">
-                {[
-                    { tipo: 'ingreso' as TipoTransaccion, label: 'Ingreso', cls: 'bg-green-600 hover:bg-green-700' },
-                    { tipo: 'gasto' as TipoTransaccion, label: 'Gasto', cls: 'bg-red-600 hover:bg-red-700' },
-                    { tipo: 'transferencia' as TipoTransaccion, label: 'Transferencia', cls: 'bg-indigo-600 hover:bg-indigo-700' },
-                ].map(({ tipo, label, cls }) => (
-                    <button
-                        key={tipo}
-                        type="button"
-                        onClick={() => setModal({ tipo: 'crear', tipoInicial: tipo })}
-                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white shadow-lg ${cls}`}
-                    >
-                        <Plus className="h-4 w-4" />
-                        {label}
-                    </button>
-                ))}
-            </div>
+            {/* FAB — botón flotante "+" con menú de tipo (oculto en modo selección) */}
+            {!modoSeleccion && (
+                <div className="fixed bottom-6 right-6 z-40 flex flex-col-reverse items-end gap-2">
+                    {[
+                        { tipo: 'ingreso' as TipoTransaccion, label: 'Ingreso', cls: 'bg-green-600 hover:bg-green-700' },
+                        { tipo: 'gasto' as TipoTransaccion, label: 'Gasto', cls: 'bg-red-600 hover:bg-red-700' },
+                        { tipo: 'transferencia' as TipoTransaccion, label: 'Transferencia', cls: 'bg-indigo-600 hover:bg-indigo-700' },
+                    ].map(({ tipo, label, cls }) => (
+                        <button
+                            key={tipo}
+                            type="button"
+                            onClick={() => setModal({ tipo: 'crear', tipoInicial: tipo })}
+                            className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white shadow-lg ${cls}`}
+                        >
+                            <Plus className="h-4 w-4" />
+                            {label}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {/* Modal crear / editar */}
             {modal && (
