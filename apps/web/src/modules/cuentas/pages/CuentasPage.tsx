@@ -4,12 +4,14 @@ import { formatCurrency } from '../../../shared/utils/currency';
 import { useCuentas } from '../hooks/useCuentas';
 import { CuentaCard } from '../components/CuentaCard';
 import { CuentaForm } from '../components/CuentaForm';
+import { AjusteSaldoForm } from '../components/AjusteSaldoForm';
 import type { Cuenta, CuentaCreateInput, CuentaUpdateInput } from '../cuentas.types';
 
 type ModalEstado =
     | null
     | { tipo: 'crear' }
-    | { tipo: 'editar'; cuenta: Cuenta };
+    | { tipo: 'editar'; cuenta: Cuenta }
+    | { tipo: 'ajustar'; cuenta: Cuenta };
 
 export function CuentasPage() {
     const {
@@ -22,9 +24,11 @@ export function CuentasPage() {
         crearCuenta,
         actualizarCuenta,
         archivarCuenta,
+        ajustarCuenta,
         isCreating,
         isUpdating,
         isArchiving,
+        isAjustando,
     } = useCuentas();
 
     const [modal, setModal] = useState<ModalEstado>(null);
@@ -42,6 +46,12 @@ export function CuentasPage() {
 
     const handleArchivar = async (cuenta: Cuenta) => {
         await archivarCuenta(cuenta.id);
+    };
+
+    const handleAjustar = async (saldoReal: number, nota: string) => {
+        if (modal?.tipo !== 'ajustar') return;
+        await ajustarCuenta({ id: modal.cuenta.id, saldoReal, nota: nota || undefined });
+        setModal(null);
     };
 
     const formLoading = isCreating || isUpdating;
@@ -125,6 +135,7 @@ export function CuentasPage() {
                             cuenta={cuenta}
                             onEditar={(c) => setModal({ tipo: 'editar', cuenta: c })}
                             onArchivar={handleArchivar}
+                            onAjustar={(c) => setModal({ tipo: 'ajustar', cuenta: c })}
                             isArchiving={isArchiving}
                         />
                     ))}
@@ -141,16 +152,27 @@ export function CuentasPage() {
                 >
                     <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
                         <h2 id="modal-title" className="text-lg font-semibold text-gray-900 mb-4">
-                            {modal.tipo === 'crear' ? 'Nueva cuenta' : 'Editar cuenta'}
+                            {modal.tipo === 'crear'
+                                ? 'Nueva cuenta'
+                                : modal.tipo === 'editar'
+                                ? 'Editar cuenta'
+                                : `Ajustar saldo — ${modal.cuenta.nombre}`}
                         </h2>
-                        <CuentaForm
-                            cuentaInicial={modal.tipo === 'editar' ? modal.cuenta : undefined}
-                            onSubmit={
-                                modal.tipo === 'crear' ? handleCrear : handleActualizar
-                            }
-                            onCancelar={() => setModal(null)}
-                            isLoading={formLoading}
-                        />
+                        {modal.tipo === 'ajustar' ? (
+                            <AjusteSaldoForm
+                                cuenta={modal.cuenta}
+                                onSubmit={handleAjustar}
+                                onCancelar={() => setModal(null)}
+                                isLoading={isAjustando}
+                            />
+                        ) : (
+                            <CuentaForm
+                                cuentaInicial={modal.tipo === 'editar' ? modal.cuenta : undefined}
+                                onSubmit={modal.tipo === 'crear' ? handleCrear : handleActualizar}
+                                onCancelar={() => setModal(null)}
+                                isLoading={formLoading}
+                            />
+                        )}
                     </div>
                 </div>
             )}

@@ -59,6 +59,15 @@ export function useCuentas() {
         },
     });
 
+    const ajustarMutation = useMutation({
+        mutationFn: ({ id, saldoReal, nota }: { id: string; saldoReal: number; nota?: string }) =>
+            client.post<{ transaccionCreada: boolean; diferencia: number }>(`${API_BASE}/${id}/ajuste`, { saldoReal, nota }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+            queryClient.invalidateQueries({ queryKey: ['transacciones'] });
+        },
+    });
+
     return {
         cuentas,
         totalActivos,
@@ -69,8 +78,10 @@ export function useCuentas() {
         crearCuenta: crearMutation.mutateAsync,
         actualizarCuenta: actualizarMutation.mutateAsync,
         archivarCuenta: archivarMutation.mutateAsync,
+        ajustarCuenta: ajustarMutation.mutateAsync,
         isCreating: crearMutation.isPending,
         isUpdating: actualizarMutation.isPending,
         isArchiving: archivarMutation.isPending,
+        isAjustando: ajustarMutation.isPending,
     };
 }

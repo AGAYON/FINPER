@@ -61,3 +61,20 @@ cuentasRouter.patch('/:id/archivar', async (req, res, next) => {
         next(err);
     }
 });
+
+const AjusteSaldoSchema = z.object({
+    saldoReal: z.number({ required_error: 'saldoReal es requerido' }),
+    nota: z.string().max(255).optional(),
+});
+
+// POST /api/cuentas/:id/ajuste — Ajuste de saldo
+cuentasRouter.post('/:id/ajuste', async (req, res, next) => {
+    try {
+        const id = UUID.parse(req.params.id);
+        const { saldoReal, nota } = AjusteSaldoSchema.parse(req.body);
+        const resultado = await service.ajustarSaldo(id, saldoReal, nota);
+        res.json(resultado);
+    } catch (err) {
+        next(err);
+    }
+});

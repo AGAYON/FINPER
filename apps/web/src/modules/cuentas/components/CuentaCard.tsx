@@ -8,6 +8,7 @@ import {
     FileText,
     Pencil,
     Archive,
+    SlidersHorizontal,
     X,
 } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/currency';
@@ -27,10 +28,11 @@ interface CuentaCardProps {
     cuenta: Cuenta;
     onEditar: (cuenta: Cuenta) => void;
     onArchivar: (cuenta: Cuenta) => void;
+    onAjustar: (cuenta: Cuenta) => void;
     isArchiving?: boolean;
 }
 
-export function CuentaCard({ cuenta, onEditar, onArchivar, isArchiving }: CuentaCardProps) {
+export function CuentaCard({ cuenta, onEditar, onArchivar, onAjustar, isArchiving }: CuentaCardProps) {
     const [confirmarArchivar, setConfirmarArchivar] = useState(false);
 
     const meta = TIPO_CUENTA_META[cuenta.tipo];
@@ -92,6 +94,14 @@ export function CuentaCard({ cuenta, onEditar, onArchivar, isArchiving }: Cuenta
                     >
                         <Pencil className="h-4 w-4" />
                         Editar
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onAjustar(cuenta)}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                    >
+                        <SlidersHorizontal className="h-4 w-4" />
+                        Ajuste
                     </button>
                     {!confirmarArchivar ? (
                         <button

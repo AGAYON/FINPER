@@ -46,7 +46,7 @@ export class CuentasService {
 
     /** Calcula el saldo de una cuenta desde sus transacciones (lógica explícita por tipo) */
     async calcularSaldo(cuentaId: string): Promise<number> {
-        const [entradasIngreso, entradasTransfer, salidasGasto, salidasTransfer, salidasAjuste] =
+        const [entradasIngreso, entradasTransfer, entradasAjuste, salidasGasto, salidasTransfer, salidasAjuste] =
             await Promise.all([
                 db.transaccion.aggregate({
                     where: { tipo: 'ingreso', cuentaOrigenId: cuentaId },
@@ -54,6 +54,11 @@ export class CuentasService {
                 }),
                 db.transaccion.aggregate({
                     where: { tipo: 'transferencia', cuentaDestinoId: cuentaId },
+                    _sum: { monto: true },
+                }),
+                // Ajustes positivos: auto-referenciales (cuentaDestinoId = cuentaId)
+                db.transaccion.aggregate({
+                    where: { tipo: 'ajuste', cuentaDestinoId: cuentaId },
                     _sum: { monto: true },
                 }),
                 db.transaccion.aggregate({
@@ -64,8 +69,13 @@ export class CuentasService {
                     where: { tipo: 'transferencia', cuentaOrigenId: cuentaId },
                     _sum: { monto: true },
                 }),
+                // Ajustes negativos: cuentaDestinoId nulo (no auto-referenciales)
                 db.transaccion.aggregate({
-                    where: { tipo: 'ajuste', cuentaOrigenId: cuentaId },
+                    where: {
+                        tipo: 'ajuste',
+                        cuentaOrigenId: cuentaId,
+                        NOT: { cuentaDestinoId: cuentaId },
+                    },
                     _sum: { monto: true },
                 }),
             ]);
@@ -73,7 +83,9 @@ export class CuentasService {
         const cuenta = await db.cuenta.findUniqueOrThrow({ where: { id: cuentaId } });
         const saldoInicial = Number(cuenta.saldoInicial);
         const entradas =
-            Number(entradasIngreso._sum.monto ?? 0) + Number(entradasTransfer._sum.monto ?? 0);
+            Number(entradasIngreso._sum.monto ?? 0) +
+            Number(entradasTransfer._sum.monto ?? 0) +
+            Number(entradasAjuste._sum.monto ?? 0);
         const salidas =
             Number(salidasGasto._sum.monto ?? 0) +
             Number(salidasTransfer._sum.monto ?? 0) +
@@ -109,5 +121,53 @@ export class CuentasService {
             where: { id },
             data: { activa: false },
         });
+    }
+
+    /**
+     * Ajusta el saldo de una cuenta creando una transacción de tipo 'ajuste'.
+     * - diferencia > 0: ajuste auto-referencial (cuentaOrigenId = cuentaDestinoId = id) → suma al saldo
+     * - diferencia < 0: ajuste normal (solo cuentaOrigenId = id) → resta al saldo
+     */
+    async ajustarSaldo(id: string, saldoReal: number, nota?: string) {
+        const cuenta = await db.cuenta.findUnique({ where: { id } });
+        if (!cuenta) throw new AppError('Cuenta no encontrada', 404);
+
+        const saldoCalculado = await this.calcularSaldo(id);
+        const esPasivo = cuenta.tipo === 'credito' || cuenta.tipo === 'prestamo';
+
+        // Para cuentas pasivas el ajuste positivo (más deuda) usa cuentaOrigenId solo
+        // Para cuentas activas el ajuste positivo (más dinero) usa auto-referencial
+        const diferencia = saldoReal - saldoCalculado;
+
+        if (Math.abs(diferencia) < 0.01) {
+            return { transaccionCreada: false, diferencia: 0, transaccion: null };
+        }
+
+        const montoAbs = Math.abs(diferencia);
+        // auto-referencial cuando necesitamos que SUME al saldo:
+        // activo + dif>0 → suma  |  pasivo + dif<0 → suma (reducir deuda = entradasAjuste)
+        const autoReferencial = (!esPasivo && diferencia > 0) || (esPasivo && diferencia < 0);
+
+        const hoy = new Date();
+        hoy.setUTCHours(0, 0, 0, 0);
+
+        const transaccion = await db.transaccion.create({
+            data: {
+                fecha: hoy,
+                monto: montoAbs,
+                descripcion: 'Ajuste de saldo',
+                tipo: 'ajuste',
+                cuentaOrigenId: id,
+                cuentaDestinoId: autoReferencial ? id : null,
+                categoriaId: null,
+                notas: nota ?? null,
+            },
+        });
+
+        return {
+            transaccionCreada: true,
+            diferencia,
+            transaccion,
+        };
     }
 }
