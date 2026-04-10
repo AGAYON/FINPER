@@ -66,7 +66,7 @@
 | Frontend | `http://192.168.1.101:5173` |
 | API | `http://192.168.1.101:3001` |
 | Health check | `http://192.168.1.101:3001/health` |
-| PostgreSQL | `postgresql://finper:finper_secret@localhost:5432/finper_dev` |
+| PostgreSQL | `postgresql://finper:finper_secret@localhost:5433/finper_dev` |
 
 **Variables de entorno relevantes:**
 

@@ -70,11 +70,13 @@ export class CuentasService {
                     _sum: { monto: true },
                 }),
                 // Ajustes negativos: cuentaDestinoId nulo (no auto-referenciales)
+                // NOTA: usar cuentaDestinoId: null directamente porque NOT:{field:val}
+                // en Prisma no captura NULLs (SQL: NOT NULL = uuid → NULL, no TRUE)
                 db.transaccion.aggregate({
                     where: {
                         tipo: 'ajuste',
                         cuentaOrigenId: cuentaId,
-                        NOT: { cuentaDestinoId: cuentaId },
+                        cuentaDestinoId: null,
                     },
                     _sum: { monto: true },
                 }),
